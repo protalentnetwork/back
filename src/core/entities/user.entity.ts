@@ -1,19 +1,34 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Log } from './log.entity';
+import { Ticket } from './ticket.entity';
+import { Transaction } from './transaction';
 
 @Entity()
 export class User {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
-
-    @Column()
-    name: string;
+    @PrimaryGeneratedColumn()
+    id: number;
 
     @Column({ unique: true })
     email: string;
 
-    @CreateDateColumn()
-    createdAt: Date;
+    @Column({ nullable: true })
+    otp: string;
 
-    @UpdateDateColumn()
-    updatedAt: Date;
+    @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+    balance: number;
+
+    @Column()
+    role: string;
+
+    @Column()
+    status: string;
+
+    @OneToMany(() => Transaction, transaction => transaction.user)
+    transactions: Transaction[];
+
+    @OneToMany(() => Ticket, ticket => ticket.user)
+    tickets: Ticket[];
+
+    @OneToMany(() => Log, log => log.user)
+    logs: Log[];
 }
