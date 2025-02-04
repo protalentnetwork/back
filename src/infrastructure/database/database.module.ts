@@ -9,19 +9,14 @@ import { Transaction } from 'typeorm';
     imports: [
         TypeOrmModule.forRoot({
             type: 'postgres',
-            url: 'postgresql://postgres:lzAAAKpllvtjLLaBBNilVYBkmqUWWAXL@monorail.proxy.rlwy.net:39653/railway',
+            url: process.env.DATABASE_URL,
             entities: [User, Transaction, Ticket, Log],
             synchronize: true,
             ssl: {
                 rejectUnauthorized: false
-            },
-            extra: {
-                ssl: {
-                    rejectUnauthorized: false,
-                    sslmode: 'no-verify'
-                }
             }
         }),
+        TypeOrmModule.forFeature([User, Transaction, Ticket, Log])
     ],
 })
 export class DatabaseModule { }
