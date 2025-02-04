@@ -3,18 +3,18 @@ import { User } from './user.entity';
 
 @Entity()
 export class Transaction {
-   @PrimaryGeneratedColumn()
-   id: number;
+    @PrimaryGeneratedColumn()
+    id: number;
 
-   @ManyToOne(() => User, (user: { transactions: any; }) => user.transactions)
-   user: User;
+    @ManyToOne(() => User, (user) => user.transactions, { eager: true })
+    user: User;
 
-   @Column({ type: 'decimal', precision: 10, scale: 2 })
-   amount: number;
+    @Column({ type: 'decimal', precision: 10, scale: 2 })
+    amount: number;
 
-   @Column()
-   status: string;
+    @Column()
+    status: string;
 
-   @Column()
-   type: string;
+    @Column()
+    type: string;
 }

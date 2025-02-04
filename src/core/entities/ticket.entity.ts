@@ -3,18 +3,18 @@ import { User } from './user.entity';
 
 @Entity()
 export class Ticket {
-   @PrimaryGeneratedColumn()
-   id: number;
+    @PrimaryGeneratedColumn()
+    id: number;
 
-   @ManyToOne(() => User, user => user.tickets)
-   user: User;
+    @ManyToOne(() => User, (user) => user.tickets)
+    user: User;
 
-   @Column()
-   message: string;
+    @Column()
+    message: string;
 
-   @Column()
-   status: string;
+    @Column()
+    status: string;
 
-   @ManyToOne(() => User)
-   assignedTo: User;
+    @ManyToOne(() => User)
+    assignedTo: User;
 }

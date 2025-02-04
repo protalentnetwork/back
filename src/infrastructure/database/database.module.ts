@@ -12,11 +12,8 @@ import { Transaction } from 'typeorm';
             url: process.env.DATABASE_URL,
             entities: [User, Transaction, Ticket, Log],
             synchronize: true,
-            ssl: {
-                rejectUnauthorized: false
-            }
-        }),
-        TypeOrmModule.forFeature([User, Transaction, Ticket, Log])
+            ssl: { rejectUnauthorized: false }
+        })
     ],
 })
 export class DatabaseModule { }

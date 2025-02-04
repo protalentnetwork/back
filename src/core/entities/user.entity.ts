@@ -26,7 +26,7 @@ export class User {
     @Column()
     status: string;
 
-    @OneToMany(() => Transaction, transaction => transaction.user)
+    @OneToMany(() => Transaction, (transaction) => transaction.user)
     transactions: Transaction[];
 
     @OneToMany(() => Ticket, ticket => ticket.user)

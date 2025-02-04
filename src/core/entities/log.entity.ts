@@ -3,18 +3,18 @@ import { User } from './user.entity';
 
 @Entity()
 export class Log {
-   @PrimaryGeneratedColumn()
-   id: number;
+    @PrimaryGeneratedColumn()
+    id: number;
 
-   @Column()
-   action: string;
+    @Column()
+    action: string;
 
-   @ManyToOne(() => User, user => user.logs)
-   user: User;
+    @ManyToOne(() => User, (user) => user.logs)
+    user: User;
 
-   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-   date: Date;
+    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    date: Date;
 
-   @Column()
-   result: string;
+    @Column()
+    result: string;
 }
