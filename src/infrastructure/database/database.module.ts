@@ -9,10 +9,16 @@ import { Transaction } from 'typeorm';
     imports: [
         TypeOrmModule.forRoot({
             type: 'postgres',
-            url: process.env.DATABASE_URL,
+            host: 'monorail.proxy.rlwy.net',
+            port: 39653,
+            username: 'postgres',
+            password: 'lzAAAKpllvtjLLaBBNilVYBkmqUWWAXL',
+            database: 'railway',
             entities: [User, Transaction, Ticket, Log],
             synchronize: true,
-            ssl: { rejectUnauthorized: false }
+            ssl: {
+                rejectUnauthorized: false
+            }
         })
     ],
 })
