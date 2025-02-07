@@ -16,7 +16,7 @@ import { User } from 'src/core/entities/user.entity';
       password: 'lzAAAKpllvtjLLaBBNilVYBkmqUWWAXL',
       database: 'railway',
       entities: [User, Transaction, Ticket, Log], // Todas las entidades registradas
-      synchronize: true,
+      synchronize: true, // cambiar a false para consistencia de datos.
       ssl: {
         rejectUnauthorized: false,
       },
