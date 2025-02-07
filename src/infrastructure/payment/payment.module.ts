@@ -8,7 +8,7 @@ import { MercadoPagoGateway } from './MercadoPagoGateway';
         {
             provide: 'PaymentGateway',
             useClass: MercadoPagoGateway
-        }
+        },
     ]
 })
 export class PaymentModule { }
