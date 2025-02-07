@@ -1,13 +1,24 @@
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { Injectable } from '@nestjs/common';
 import { IPaymentGateway } from "src/core/domain/payment/IPaymentGateway";
 import { PaymentPreference } from "src/core/domain/payment/PaymentPreference";
-import { Payment, Preference } from "mercadopago";
 
+@Injectable()
 export class MercadoPagoGateway implements IPaymentGateway {
-    constructor(private mercadopago = mercadopago) {}
+    private client: MercadoPagoConfig;
 
-    // Crea la preferencia en MP y retorna la URL de pago
+    constructor() {
+        if (!process.env.MP_ACCESS_TOKEN) {
+            throw new Error('MP_ACCESS_TOKEN must be defined');
+        }
+        this.client = new MercadoPagoConfig({
+            accessToken: process.env.MP_ACCESS_TOKEN
+        });
+    }
+
     async createPreference(preference: PaymentPreference): Promise<string> {
-        const mpPreference = await new Preference(this.mercadopago).create({
+        const preferenceClient = new Preference(this.client);
+        const mpPreference = await preferenceClient.create({
             body: {
                 items: preference.items,
                 metadata: preference.metadata,
@@ -17,9 +28,9 @@ export class MercadoPagoGateway implements IPaymentGateway {
         return mpPreference.init_point!;
     }
 
-    // Verifica un pago por ID
     async verifyPayment(paymentId: string) {
-        const payment = await new Payment(this.mercadopago).get({ id: paymentId });
+        const paymentClient = new Payment(this.client);
+        const payment = await paymentClient.get({ id: paymentId });
 
         if (!payment.status) {
             throw new Error('Payment status not found');
