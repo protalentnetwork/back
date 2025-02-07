@@ -3,7 +3,7 @@ import { PaymentPreference } from "src/core/domain/payment/PaymentPreference";
 import { Payment, Preference } from "mercadopago";
 
 export class MercadoPagoGateway implements IPaymentGateway {
-    constructor(private mercadopago: any) { }
+    constructor(private mercadopago = mercadopago) {}
 
     // Crea la preferencia en MP y retorna la URL de pago
     async createPreference(preference: PaymentPreference): Promise<string> {
