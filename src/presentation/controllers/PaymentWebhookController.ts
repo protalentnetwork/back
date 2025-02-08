@@ -20,4 +20,16 @@ export class PaymentWebhookController {
         });
         return { checkoutUrl };
     }
+
+    @Post('webhook')
+    async handleWebhook(@Body() body: any) {
+        const payment = await this.paymentGateway.verifyPayment(body.data.id);
+
+        if (payment.status === "approved") {
+            // Aquí iría la lógica de mensaje cuando implementemos MessageService
+            console.log("Payment approved:", payment);
+        }
+
+        return { status: 200 };
+    }
 }
