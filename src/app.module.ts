@@ -4,10 +4,14 @@ import { UserModule } from './users/user.module';
 import { PaymentModule } from './payment/payment.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TypeOrmConfigService } from './config/database/database.module';
+import { HttpModule } from '@nestjs/axios';
+import { ZendeskController } from './ticketing/zendesk.controller';
+import { ZendeskModule } from './ticketing/zendesk.module';
+
 
 
 @Module({
-  imports: [
+  imports: [HttpModule, ZendeskModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -16,10 +20,12 @@ import { TypeOrmConfigService } from './config/database/database.module';
       imports: [ConfigModule],
       useClass: TypeOrmConfigService,
     }),
+
     UserModule,
     PaymentModule,
 
 
   ],
+  controllers: [ZendeskController],
 })
 export class AppModule { }

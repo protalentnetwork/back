@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from '@nestjs/config';
 import { IPaymentGateway } from "../payment.types";
 import { PaymentPreference } from "../payment.types";
 import { Preference, MercadoPagoConfig, Payment } from "mercadopago";
@@ -7,13 +8,18 @@ import { Preference, MercadoPagoConfig, Payment } from "mercadopago";
 export class MercadoPagoRepository implements IPaymentGateway {
     private client: MercadoPagoConfig;
 
-    constructor() {
-        if (!process.env.MP_ACCESS_TOKEN) {
+    constructor(private configService: ConfigService) {
+        console.log('Environment variables:', {
+            MP_ACCESS_TOKEN: this.configService.get('MP_ACCESS_TOKEN'),
+            NODE_ENV: this.configService.get('NODE_ENV')
+        });
+
+        const mpAccessToken = this.configService.get<string>('MP_ACCESS_TOKEN');
+        if (!mpAccessToken) {
             throw new Error('MP_ACCESS_TOKEN must be defined');
         }
         this.client = new MercadoPagoConfig({
-
-            accessToken: process.env.MP_ACCESS_TOKEN
+            accessToken: mpAccessToken
         });
     }
 

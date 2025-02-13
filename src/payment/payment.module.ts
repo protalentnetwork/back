@@ -3,12 +3,16 @@ import { Transaction } from "./entities/transaction.entity";
 import { PaymentController } from "./payment.controller";
 import { PaymentService } from "./payment.service";
 import { Module } from "@nestjs/common";
+import { ConfigModule } from '@nestjs/config'; // Añade esta importación
 import { Ticket } from "./entities/ticket.entity";
 import { Log } from "./entities/log.entity";
 import { MercadoPagoRepository } from "./repositories/mercado-pago.repository";
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Transaction, Ticket, Log])],
+    imports: [
+        ConfigModule, // Añade esta línea
+        TypeOrmModule.forFeature([Transaction, Ticket, Log])
+    ],
     controllers: [PaymentController],
     providers: [
         PaymentService,
@@ -19,6 +23,4 @@ import { MercadoPagoRepository } from "./repositories/mercado-pago.repository";
         }
     ],
 })
-
 export class PaymentModule { }
-

@@ -8,18 +8,18 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(
     private readonly userService: UserService
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'User created successfully',
-    type: UserResponseDto 
+    type: UserResponseDto
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad request - Invalid user data' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid user data'
   })
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
     return this.userService.create(createUserDto as any);
@@ -27,12 +27,13 @@ export class UserController {
 
   @Get()
   @ApiOperation({ summary: 'Get all users' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'List of all users',
     type: [UserResponseDto]
   })
   async findAll(): Promise<UserResponseDto[]> {
     return this.userService.findAll();
   }
+
 }
