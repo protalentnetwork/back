@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
-
+import { CreateTicketDto } from 'src/users/dto/zendesk.dto';
+import { env } from 'process';
 @Injectable()
 export class ZendeskService {
-    private readonly ZENDESK_URL: string;
     private readonly ZENDESK_TOKEN: string;
     private readonly ZENDESK_EMAIL: string;
 
@@ -13,17 +13,16 @@ export class ZendeskService {
         private readonly httpService: HttpService,
         private readonly configService: ConfigService,
     ) {
-        this.ZENDESK_URL = this.configService.get<string>('ZENDESK_URL');
         this.ZENDESK_TOKEN = this.configService.get<string>('ZENDESK_TOKEN');
         this.ZENDESK_EMAIL = this.configService.get<string>('ZENDESK_EMAIL');
     }
 
-    async getOpenTickets() {
+    async getAllOpenTickets() {
         const auth = Buffer.from(`${this.ZENDESK_EMAIL}/token:${this.ZENDESK_TOKEN}`).toString('base64');
 
         try {
             const response = await firstValueFrom(
-                this.httpService.get(this.ZENDESK_URL, {
+                this.httpService.get(env.ZENDESK_URL_TICKETS, {
                     headers: {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/json',
@@ -37,28 +36,66 @@ export class ZendeskService {
         }
     }
 
-    async createUserIfNotExists(email: string): Promise<number | null> {
+    async getAllTicketsWithUser(){
         const auth = Buffer.from(`${this.ZENDESK_EMAIL}/token:${this.ZENDESK_TOKEN}`).toString('base64');
-        const url = `${this.ZENDESK_URL.replace('/api/v2/tickets.json', '/api/v2/users.json')}`; // URL for users
-    
+
         try {
-            // 1. Check if user exists (using search)
-            const searchResponse = await firstValueFrom(
-                this.httpService.get(`${url}?query=email:${email}`, {
+            const response = await firstValueFrom(
+                this.httpService.get(env.ZENDESK_URL_USERS, {
                     headers: {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/json',
                     },
+                    params: {
+                        query: 'role:end-user'
+                    }
+                })
+            )
+
+            const users = response.data.users;
+
+            const tickets = await this.getAllOpenTickets();
+
+            const ticketsWithUser = tickets.map(ticket => {
+                const user = users.find(user => user.id === ticket.requester_id);
+                return {
+                    ...ticket,
+                    user: {
+                        name: user.name,
+                        email: user.email,
+                    }
+                }
+            })
+
+            return ticketsWithUser;
+        }
+        catch(error){
+            throw new Error(`Error fetching users: ${error.message}`);
+        }
+
+    }
+
+    async createUserIfNotExists(email: string): Promise<number | null> {
+        const auth = Buffer.from(`${this.ZENDESK_EMAIL}/token:${this.ZENDESK_TOKEN}`).toString('base64');
+    
+        try {
+            const searchResponse = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL_USERS}/search`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                    params: {
+                        query: `email:${email}`
+                    }
                 })
             );
-    
+
             if (searchResponse.data.users.length > 0) {
-                // User exists, return their ID
                 return searchResponse.data.users[0].id;
             } else {
-                // 2. User doesn't exist, create them
                 const createUserResponse = await firstValueFrom(
-                    this.httpService.post(url, { user: { email, name: email } }, { // You might want to add a proper name
+                    this.httpService.post(env.ZENDESK_URL_USERS, { user: { email, name: email } }, { // You might want to add a proper name
                         headers: {
                             'Authorization': `Basic ${auth}`,
                             'Content-Type': 'application/json',
@@ -74,9 +111,8 @@ export class ZendeskService {
     }
     
     
-    async createTicket(subject: string, description: string, requesterEmail: string) {
-        const userId = await this.createUserIfNotExists(requesterEmail);
-    
+    async createTicket(createTicketDto: CreateTicketDto) {
+        const userId = await this.createUserIfNotExists(createTicketDto.email);
         if (userId === null) {
             throw new Error('Failed to create or find user.');
         }
@@ -85,15 +121,15 @@ export class ZendeskService {
     
         const ticketData = {
             ticket: {
-                subject,
-                description,
+                subject: createTicketDto.subject,
+                description: createTicketDto.description,
                 requester_id: userId, // Use requester_id instead of requester_email
             },
         };
     
         try {
             const response = await firstValueFrom(
-                this.httpService.post(this.ZENDESK_URL, ticketData, {
+                this.httpService.post(env.ZENDESK_URL_TICKETS, ticketData, {
                     headers: {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/json',
