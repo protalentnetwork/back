@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody } from '@nestjs/swagger';
 import { CreateTicketDto } from 'src/users/dto/zendesk.dto';
@@ -19,4 +19,16 @@ export class ZendeskController {
     async getAllTickets() {
         return this.zendeskService.getAllTicketsWithUser();
     }
+
+    @Get('tickets/:ticketId')
+    async getTicket(@Param('ticketId') ticketId: string) {
+        return this.zendeskService.getTicket(ticketId);
+    }
+
+    @Get('tickets/:ticketId/comments')
+    async getTicketComments(@Param('ticketId') ticketId: string) {
+        return this.zendeskService.getTicketComments(ticketId);
+    }
+
+
 }
