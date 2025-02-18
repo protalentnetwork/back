@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { env } from 'process';
 import { AxiosResponse } from 'axios';
-import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto } from './dto/zendesk.dto';
+import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto } from './dto/zendesk.dto';
 import { Ticket, TicketWithoutUser, User, Comment } from './zendesk.types';
 
 @Injectable()
@@ -30,7 +30,8 @@ export class ZendeskService {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                default_group_id: user.default_group_id
             }));
         } catch (error) {
             console.log(error.response.data);
@@ -55,7 +56,10 @@ export class ZendeskService {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                default_group_id: user.default_group_id,
+                organization_id: user.organization_id,
+                custom_role_id: user.custom_role_id
             }));
         } catch (error) {
             throw new Error(`Error fetching users: ${error.message}`);
@@ -104,7 +108,9 @@ export class ZendeskService {
                     user: user ? {
                         name: user.name,
                         email: user.email,
-                    } : undefined
+                    } : undefined,
+                    group_id: ticket.group_id,
+                    custom_fields: ticket.custom_fields
                 };
             });
         } catch (error) {
@@ -159,10 +165,13 @@ export class ZendeskService {
                     status: ticket.status,
                     requester_id: ticket.requester_id,
                     assignee_id: ticket.assignee_id,
+                    created_at: ticket.created_at,
+                    updated_at: ticket.updated_at,
                     user: user ? {
                         name: user.name,
                         email: user.email,
-                    } : undefined
+                    } : undefined,
+                    group_id: ticket.group_id
                 };
             });
         } catch (error) {
@@ -172,7 +181,7 @@ export class ZendeskService {
 
     async createUserIfNotExists(email: string): Promise<number | null> {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
+        console.log(email, 'email on createUserIfNotExists');
         try {
             const searchResponse = await firstValueFrom(
                 this.httpService.get(`${env.ZENDESK_URL_USERS}/search`, {
@@ -187,6 +196,7 @@ export class ZendeskService {
             );
 
             if (searchResponse.data.users.length > 0) {
+                console.log(searchResponse.data.users[0].id, 'id on createUserIfNotExists');
                 return searchResponse.data.users[0].id;
             } else {
                 const createUserResponse = await firstValueFrom(
@@ -197,6 +207,7 @@ export class ZendeskService {
                         },
                     })
                 );
+                console.log(createUserResponse.data.user.id, 'id on createUserIfNotExists');
                 return createUserResponse.data.user.id;
             }
         } catch (error) {
@@ -205,20 +216,30 @@ export class ZendeskService {
         }
     }
 
-    async createTicket(createTicketDto: CreateTicketDto): Promise<TicketResponseDto> {
-        const userId = await this.createUserIfNotExists(createTicketDto.email);
+    async createTicket(createTicketDto: CreateTicketDto) {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+        const MONEY_GROUP_ID = '34157406608155';
+        const MONEY_CUSTOM_FIELD_ID = 34161101814811;
 
+        const userId = await this.createUserIfNotExists(createTicketDto.email);
+        console.log(userId, 'userId on createTicket');
         if (userId === null) {
             throw new Error('Failed to create or find user.');
         }
 
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+        // Check if this is a money-related ticket by checking the custom field value
+        const moneyCustomField = createTicketDto.custom_fields?.find(
+            field => field.id === MONEY_CUSTOM_FIELD_ID
+        );
+        const isMoneyTicket = moneyCustomField?.value === "Dinero";
 
         const ticketData = {
             ticket: {
                 subject: createTicketDto.subject,
                 description: createTicketDto.description,
                 requester_id: userId,
+                custom_fields: createTicketDto.custom_fields,
+                ...(isMoneyTicket && { group_id: parseInt(MONEY_GROUP_ID) })
             },
         };
 
@@ -233,6 +254,61 @@ export class ZendeskService {
             );
 
             const ticket = response.data.ticket;
+
+            // If it's a money ticket, find and assign the agent with least tickets
+            if (isMoneyTicket) {
+                try {
+                    // Get all group memberships to find Money Agent members
+                    const groupMembershipsResponse = await firstValueFrom(
+                        this.httpService.get(`${env.ZENDESK_URL_GROUP_MEMBERSHIPS}`, {
+                            headers: {
+                                'Authorization': `Basic ${auth}`,
+                                'Content-Type': 'application/json',
+                            },
+                        })
+                    );
+
+                    // Get all tickets to count assignments
+                    const ticketsResponse = await firstValueFrom(
+                        this.httpService.get(env.ZENDESK_URL_TICKETS, {
+                            headers: {
+                                'Authorization': `Basic ${auth}`,
+                                'Content-Type': 'application/json',
+                            },
+                        })
+                    );
+
+                    const tickets = ticketsResponse.data.tickets;
+
+                    // Filter group memberships to get only Money Agent members
+                    const moneyAgentMemberships = groupMembershipsResponse.data.group_memberships
+                        .filter(membership => membership.group_id.toString() === MONEY_GROUP_ID);
+
+                    if (moneyAgentMemberships.length > 0) {
+                        // Count tickets for each Money Agent member
+                        const agentTicketCounts = moneyAgentMemberships.map(membership => ({
+                            user_id: membership.user_id,
+                            ticketCount: tickets.filter(ticket => ticket.assignee_id === membership.user_id).length
+                        }));
+
+                        // Find the agent with the least tickets
+                        const agentWithLeastTickets = agentTicketCounts.reduce((prev, current) => 
+                            prev.ticketCount <= current.ticketCount ? prev : current
+                        );
+
+                        // Use the asignTicket method to assign the ticket
+                        const updatedTicket = await this.asignTicket(
+                            ticket.id.toString(),
+                            agentWithLeastTickets.user_id.toString()
+                        );
+                        return updatedTicket;
+                    }
+                } catch (error) {
+                    console.error('Error finding Money Agent:', error);
+                    // Return the original ticket if there's an error in assignment
+                }
+            }
+
             return {
                 id: ticket.id,
                 subject: ticket.subject,
@@ -240,7 +316,9 @@ export class ZendeskService {
                 status: ticket.status,
                 requester_id: ticket.requester_id,
                 assignee_id: ticket.assignee_id,
-                user: ticket.user
+                user: ticket.user,
+                group_id: ticket.group_id,
+                custom_fields: ticket.custom_fields
             };
         } catch (error) {
             console.error('Zendesk API Error:', error.response?.data || error.message);
@@ -269,7 +347,8 @@ export class ZendeskService {
                 status: ticket.status,
                 requester_id: ticket.requester_id,
                 assignee_id: ticket.assignee_id,
-                user: ticket.user
+                user: ticket.user,
+                group_id: ticket.group_id
             };
         } catch (error) {
             throw new Error(`Error fetching ticket: ${error.response?.data || error.message}`);
@@ -280,7 +359,7 @@ export class ZendeskService {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
 
         try {
-            const response: AxiosResponse<{ comments: Comment[] }> = await firstValueFrom(
+            const response: AxiosResponse = await firstValueFrom(
                 this.httpService.get(`${env.ZENDESK_URL_TICKETS}/${ticketId}/comments`, {
                     headers: {
                         'Authorization': `Basic ${auth}`,
@@ -289,12 +368,7 @@ export class ZendeskService {
                 })
             );
 
-            return response.data.comments.map(comment => ({
-                id: comment.id,
-                body: comment.body,
-                author_id: comment.author_id,
-                created_at: comment.created_at
-            }));
+            return response.data;
         } catch (error) {
             throw new Error(`Error fetching comments: ${error.response?.data || error.message}`);
         }
@@ -321,7 +395,8 @@ export class ZendeskService {
                 status: ticket.status,
                 requester_id: ticket.requester_id,
                 assignee_id: ticket.assignee_id,
-                user: ticket.user
+                user: ticket.user,
+                group_id: ticket.group_id
             };
         } catch (error) {
             throw new Error(`Error changing ticket status: ${error.response?.data || error.message}`);
@@ -349,10 +424,78 @@ export class ZendeskService {
                 status: ticket.status,
                 requester_id: ticket.requester_id,
                 assignee_id: ticket.assignee_id,
-                user: ticket.user
+                user: ticket.user,
+                group_id: ticket.group_id
             };
         } catch (error) {
             throw new Error(`Error assigning ticket: ${error.response?.data || error.message}`);
         }
     }
+
+    async getAgentsWithGroups(): Promise<GroupMembershipResponseDto[]> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        // Define group names mapping
+        const groupNames = {
+            '34157406608155': 'Money Agent',
+            '34157418101659': 'Administrative Agent',
+            '33924618663451': 'Support'
+        };
+
+        try {
+            // First, get all users to have their information available
+            const usersResponse = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL_USERS}`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            const users = usersResponse.data.users;
+
+            // Get all tickets to count assignments
+            const ticketsResponse = await firstValueFrom(
+                this.httpService.get(env.ZENDESK_URL_TICKETS, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            const tickets = ticketsResponse.data.tickets;
+
+            // Then get the group memberships
+            const groupMembershipsResponse = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL_GROUP_MEMBERSHIPS}`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            // Map the response to include user information, ticket count and group name
+            return groupMembershipsResponse.data.group_memberships.map(membership => {
+                const user = users.find(u => u.id === membership.user_id);
+                const assignedTicketsCount = tickets.filter(ticket => ticket.assignee_id === membership.user_id).length;
+                
+                return {
+                    ...membership,
+                    group_name: groupNames[membership.group_id.toString()] || 'Unknown Group',
+                    user: user ? {
+                        name: user.name,
+                        email: user.email,
+                        role: user.role,
+                        assigned_tickets_count: assignedTicketsCount
+                    } : undefined
+                };
+            });
+        } catch (error) {
+            throw new Error(`Error fetching agents with groups: ${error.response?.data || error.message}`);
+        }
+    }
+
 }

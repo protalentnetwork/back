@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
-import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto } from './dto/zendesk.dto';
+import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto } from './dto/zendesk.dto';
 
 @ApiTags('Zendesk')
 @Controller('zendesk')
@@ -75,5 +75,12 @@ export class ZendeskController {
         @Body() assignDto: AssignTicketDto
     ) {
         return this.zendeskService.asignTicket(ticketId, assignDto.userId);
+    }
+
+    @Get('agents/groups')
+    @ApiOperation({ summary: 'Get all agents with their group memberships' })
+    @ApiResponse({ type: [GroupMembershipResponseDto] })
+    async getAgentsWithGroups() {
+        return this.zendeskService.getAgentsWithGroups();
     }
 }

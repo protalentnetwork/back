@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsNumber, IsEnum } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsNumber, IsEnum, IsArray, IsBoolean } from 'class-validator';
 
 export class CreateTicketDto {
     @ApiProperty({ description: 'Email of the ticket requester' })
@@ -13,6 +13,20 @@ export class CreateTicketDto {
     @ApiProperty({ description: 'Description of the ticket' })
     @IsString()
     description: string;
+
+    @ApiProperty({
+        description: 'Custom field of the ticket',
+        example: [{
+            id: 1,
+            value: "Custom value"
+        }],
+        type: 'array'
+    })
+    @IsArray()
+    custom_fields: {
+        id?: number;
+        value: string;
+    }[];
 }
 
 export class ChangeTicketStatusDto {
@@ -58,6 +72,17 @@ export class TicketResponseDto {
         name: string;
         email: string;
     };
+
+    @ApiProperty()
+    @IsNumber()
+    group_id: number;
+
+    @ApiProperty({ type: 'array' })
+    @IsOptional()
+    custom_fields?: {
+        id: number;
+        value: string;
+    }[];
 }
 
 export class CommentResponseDto {
@@ -94,4 +119,46 @@ export class UserResponseDto {
     @ApiProperty()
     @IsString()
     role: string;
+}
+
+export class GroupMembershipResponseDto {
+    @ApiProperty()
+    @IsString()
+    url: string;
+
+    @ApiProperty()
+    @IsNumber()
+    id: number;
+
+    @ApiProperty()
+    @IsNumber()
+    user_id: number;
+
+    @ApiProperty()
+    @IsNumber()
+    group_id: number;
+
+    @ApiProperty()
+    @IsString()
+    group_name: string;
+
+    @ApiProperty()
+    @IsString()
+    created_at: string;
+
+    @ApiProperty()
+    @IsString()
+    updated_at: string;
+
+    @ApiProperty()
+    @IsBoolean()
+    default: boolean;
+
+    @ApiProperty()
+    user?: {
+        name: string;
+        email: string;
+        role: string;
+        assigned_tickets_count: number;
+    };
 } 
