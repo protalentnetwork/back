@@ -1,7 +1,10 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { DataSource, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 
-@EntityRepository(User) // Especifica la entidad que maneja este repositorio
+@Injectable()
 export class UserRepository extends Repository<User> {
-    // Puedes añadir métodos personalizados para consultas a la base de datos
+    constructor(dataSource: DataSource) {
+        super(User, dataSource.createEntityManager());
+    }
 }

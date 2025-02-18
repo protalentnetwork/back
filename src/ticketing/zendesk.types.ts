@@ -167,3 +167,11 @@ export interface Comment {
   export interface Custom {}
 
 /* FIN COMMENT INTERFACE */
+
+/* INICIO UPDATE TICKET INTERFACE */
+
+export interface UpdateTicketDto {
+    ticket: Ticket;
+}
+
+/* FIN UPDATE TICKET INTERFACE */

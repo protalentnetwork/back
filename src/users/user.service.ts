@@ -16,7 +16,6 @@ export class UserService {
     }
 
     async create(createUserDto: CreateUserDto): Promise<User> {
-        // Verificar si el email ya existe
         const existingUser = await this.userRepository.findOne({
             where: { email: createUserDto.email }
         });
