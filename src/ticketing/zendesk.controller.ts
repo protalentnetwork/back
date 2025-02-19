@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Put, Query, Delete } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatMessageDto, ChatConversationResponseDto } from './dto/zendesk.dto';
@@ -28,7 +28,7 @@ export class ZendeskController {
     async getAllUsers() {
         return this.zendeskService.getAllUsers();
     }
-    
+
     @Get('tickets/any-status-tickets')
     @ApiOperation({ summary: 'Get all tickets with any status' })
     @ApiResponse({ type: [TicketResponseDto] })
@@ -84,28 +84,54 @@ export class ZendeskController {
         return this.zendeskService.getAgentsWithGroups();
     }
 
-    @Get('chats/active')
-    @ApiOperation({ summary: 'Get all active chats' })
+    @Get('chat/chats')
+    @ApiOperation({ summary: 'List all chats' })
     @ApiResponse({ type: [ChatConversationResponseDto] })
-    async getActiveChats() {
-        return this.zendeskService.getActiveChats();
+    async getAllChats() {
+        return this.zendeskService.getChats();
     }
 
-    @Get('chats/:chatId/messages')
-    @ApiOperation({ summary: 'Get messages from a specific chat' })
-    @ApiResponse({ type: [ChatMessageResponseDto] })
-    async getChatMessages(@Param('chatId') chatId: string) {
-        return this.zendeskService.getChatMessages(chatId);
+    @Get('chat/chats/search')
+    @ApiOperation({ summary: 'Search chats' })
+    @ApiResponse({ type: [ChatConversationResponseDto] })
+    async searchChats(@Query('q') query: string) {
+        return this.zendeskService.searchChats(query);
     }
 
-    @Post('chats/:chatId/messages')
-    @ApiOperation({ summary: 'Send a message to a chat' })
+    @Get('chat/chats/:chatId')
+    @ApiOperation({ summary: 'Show chat by ID' })
+    @ApiResponse({ type: ChatConversationResponseDto })
+    async getChat(@Param('chatId') chatId: string) {
+        return this.zendeskService.getChat(chatId);
+    }
+
+    @Post('chat/chats')
+    @ApiOperation({ summary: 'Create offline message' })
     @ApiBody({ type: ChatMessageDto })
-    @ApiResponse({ type: ChatMessageResponseDto })
-    async sendChatMessage(
+    @ApiResponse({ type: ChatConversationResponseDto })
+    async createOfflineMessage(@Body() messageDto: ChatMessageDto) {
+        return this.zendeskService.createOfflineMessage(messageDto);
+    }
+
+    @Put('chat/chats/:chatId')
+    @ApiOperation({ summary: 'Update chat' })
+    @ApiResponse({ type: ChatConversationResponseDto })
+    async updateChat(
         @Param('chatId') chatId: string,
-        @Body() messageDto: ChatMessageDto
+        @Body() updateData: any
     ) {
-        return this.zendeskService.sendMessage(chatId, messageDto.message);
+        return this.zendeskService.updateChat(chatId, updateData);
+    }
+
+    @Delete('chat/chats/:chatId')
+    @ApiOperation({ summary: 'Delete chat' })
+    async deleteChat(@Param('chatId') chatId: string) {
+        return this.zendeskService.deleteChat(chatId);
+    }
+
+    @Delete('chat/chats')
+    @ApiOperation({ summary: 'Bulk delete chats' })
+    async bulkDeleteChats(@Query('ids') ids: string) {
+        return this.zendeskService.bulkDeleteChats(ids);
     }
 }
