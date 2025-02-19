@@ -84,7 +84,7 @@ export class ZendeskController {
         return this.zendeskService.getAgentsWithGroups();
     }
 
-    @Get('chat/chats')
+    @Get('chat/chats')  // Cambio de 'chats/active' a 'chat/chats'
     @ApiOperation({ summary: 'List all chats' })
     @ApiResponse({ type: [ChatConversationResponseDto] })
     async getAllChats() {

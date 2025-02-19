@@ -587,12 +587,12 @@ export class ZendeskService {
         }
     }
 
-    async getChats(): Promise<ChatConversationResponseDto[]> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+    async getChats() {
+        const auth = Buffer.from(`${process.env.ZENDESK_EMAIL}/token:${process.env.ZENDESK_TOKEN}`).toString('base64');
 
         try {
             const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chat/chats`, {
+                this.httpService.get('https://404crafters.zendesk.com/api/v2/chat/chats', {
                     headers: {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/json',
@@ -600,9 +600,24 @@ export class ZendeskService {
                 })
             );
 
-            return response.data.chats;
+            const chats = response.data.chats.map(chat => ({
+                id: chat.id,
+                visitor: {
+                    name: chat.visitor?.name || 'Anonymous',
+                    email: chat.visitor?.email || ''
+                },
+                status: chat.status,
+                timestamp: chat.timestamp,
+                agent: chat.agent_names?.[0] ? {
+                    name: chat.agent_names[0]
+                } : undefined,
+                lastMessage: chat.history?.[chat.history.length - 1]?.msg || ''
+            }));
+
+            return chats;
         } catch (error) {
-            throw new Error(`Error fetching chats: ${error.message}`);
+            console.error('Error fetching chats:', error.response?.data || error);
+            throw new Error(`Error fetching chats: ${error.response?.data?.error || error.message}`);
         }
     }
 
