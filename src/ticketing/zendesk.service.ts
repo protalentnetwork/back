@@ -590,9 +590,17 @@ export class ZendeskService {
     async getChats() {
         const auth = Buffer.from(`${process.env.ZENDESK_EMAIL}/token:${process.env.ZENDESK_TOKEN}`).toString('base64');
 
+        // Log the configuration
+        console.log('Attempting to fetch chats with config:', {
+            baseUrl: 'https://404crafters.zendesk.com',
+            email: process.env.ZENDESK_EMAIL,
+            hasToken: !!process.env.ZENDESK_TOKEN
+        });
+
         try {
-            const response = await firstValueFrom(
-                this.httpService.get('https://404crafters.zendesk.com/api/v2/chat/chats', {
+            // First, let's verify the auth works by testing with a known endpoint
+            const testResponse = await firstValueFrom(
+                this.httpService.get('https://404crafters.zendesk.com/api/v2/users/me', {
                     headers: {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/json',
@@ -600,13 +608,33 @@ export class ZendeskService {
                 })
             );
 
+            console.log('Auth test successful:', testResponse.status);
+
+            // Now try the chat endpoint
+            const response = await firstValueFrom(
+                this.httpService.get('https://404crafters.zopim.com/api/v2/chats', {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    }
+                })
+            );
+
+            console.log('Chat response status:', response.status);
+            console.log('Chat response data structure:', Object.keys(response.data));
+
+            if (!response.data.chats) {
+                console.warn('Unexpected response structure:', response.data);
+                return [];
+            }
+
             const chats = response.data.chats.map(chat => ({
                 id: chat.id,
                 visitor: {
                     name: chat.visitor?.name || 'Anonymous',
                     email: chat.visitor?.email || ''
                 },
-                status: chat.status,
+                status: chat.status || 'unknown',
                 timestamp: chat.timestamp,
                 agent: chat.agent_names?.[0] ? {
                     name: chat.agent_names[0]
@@ -616,8 +644,34 @@ export class ZendeskService {
 
             return chats;
         } catch (error) {
-            console.error('Error fetching chats:', error.response?.data || error);
-            throw new Error(`Error fetching chats: ${error.response?.data?.error || error.message}`);
+            console.error('Detailed error information:', {
+                message: error.message,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                config: {
+                    url: error.config?.url,
+                    method: error.config?.method,
+                    headers: {
+                        ...error.config?.headers,
+                        Authorization: 'REDACTED'
+                    }
+                }
+            });
+
+            if (error.response?.status === 401) {
+                throw new Error('Authentication failed. Please check your Zendesk credentials.');
+            }
+
+            if (error.response?.status === 403) {
+                throw new Error('Access forbidden. Please check your Zendesk account permissions.');
+            }
+
+            if (error.response?.status === 404) {
+                throw new Error('Chat API endpoint not found. Please verify your Zendesk Chat subscription.');
+            }
+
+            throw new Error(`Failed to fetch chats: ${error.response?.data?.error || error.message}`);
         }
     }
 
