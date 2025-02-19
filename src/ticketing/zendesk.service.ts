@@ -587,32 +587,33 @@ export class ZendeskService {
         }
     }
 
+
     async getChats() {
+        const auth = Buffer.from(`${process.env.ZENDESK_EMAIL}/token:${process.env.ZENDESK_TOKEN}`).toString('base64');
+
         try {
-            const chatToken = 'IGFgmhsMxNrG2R8l9VEa20CXnAIRcdUP046G7ThI';
-            const accountKey = process.env.ZENDESK_CHAT_ACCOUNT_KEY;
-    
-            if (!chatToken || !accountKey) {
-                throw new Error('Missing Zendesk Chat credentials. Please check ZENDESK_CHAT_TOKEN and ZENDESK_CHAT_ACCOUNT_KEY');
-            }
-    
-            console.log('Attempting to fetch chats with Chat API credentials');
-    
+            console.log('Attempting to fetch chats with Zendesk credentials');
+
+            // Usando el endpoint de Zendesk Chat dentro del dominio principal de Zendesk
             const response = await firstValueFrom(
-                this.httpService.get('https://www.zopim.com/api/v2/chats', {
+                this.httpService.get('https://404crafters.zendesk.com/api/v2/chat/chats', {
                     headers: {
-                        'Authorization': `Bearer ${chatToken}`,
-                        'X-Account-Key': accountKey,
+                        'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/json',
                     }
                 })
             );
-    
-            if (!response.data.chats) {
-                console.warn('Unexpected response structure:', response.data);
+
+            console.log('Response status:', response.status);
+            console.log('Response structure:', Object.keys(response.data));
+
+            // Si no hay chats, devolver array vacío
+            if (!response.data || !response.data.chats) {
+                console.warn('No chats found or unexpected response structure:', response.data);
                 return [];
             }
-    
+
+            // Transformar los datos para el frontend
             return response.data.chats.map(chat => ({
                 id: chat.id,
                 visitor: {
@@ -626,27 +627,36 @@ export class ZendeskService {
                 } : undefined,
                 lastMessage: chat.history?.[chat.history.length - 1]?.msg || ''
             }));
-    
+
         } catch (error) {
-            console.error('Detailed error information:', {
-                message: error.message,
+            // Log detallado del error
+            console.error('Chat API Error:', {
                 status: error.response?.status,
+                statusText: error.response?.statusText,
                 data: error.response?.data,
-                config: {
-                    url: error.config?.url,
-                    method: error.config?.method
-                }
+                headers: error.response?.headers,
+                url: error.config?.url
             });
-    
+
+            // Si el error es de autenticación, intentar verificar las credenciales
             if (error.response?.status === 401) {
-                throw new Error('Zendesk Chat API authentication failed. Please check your Chat API credentials.');
+                try {
+                    // Intentar hacer una llamada de prueba a un endpoint conocido
+                    await firstValueFrom(
+                        this.httpService.get('https://404crafters.zendesk.com/api/v2/users/me', {
+                            headers: {
+                                'Authorization': `Basic ${auth}`,
+                                'Content-Type': 'application/json',
+                            }
+                        })
+                    );
+                    throw new Error('Zendesk credentials are valid but Chat API access is denied. Please verify Chat subscription.');
+                } catch (authError) {
+                    throw new Error('Failed to authenticate with Zendesk. Please check your credentials.');
+                }
             }
-    
-            if (error.response?.status === 403) {
-                throw new Error('Access forbidden. Please verify your Zendesk Chat subscription and permissions.');
-            }
-    
-            throw new Error(`Error fetching chats: ${error.response?.data?.error || error.message}`);
+
+            throw new Error(`Failed to fetch chats: ${error.response?.data?.error || error.message}`);
         }
     }
 
