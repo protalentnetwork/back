@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { env } from 'process';
 import { AxiosResponse } from 'axios';
-import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto } from './dto/zendesk.dto';
+import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatConversationResponseDto } from './dto/zendesk.dto';
 import { Ticket, TicketWithoutUser, User, Comment } from './zendesk.types';
 
 @Injectable()
@@ -292,7 +292,7 @@ export class ZendeskService {
                         }));
 
                         // Find the agent with the least tickets
-                        const agentWithLeastTickets = agentTicketCounts.reduce((prev, current) => 
+                        const agentWithLeastTickets = agentTicketCounts.reduce((prev, current) =>
                             prev.ticketCount <= current.ticketCount ? prev : current
                         );
 
@@ -481,7 +481,7 @@ export class ZendeskService {
             return groupMembershipsResponse.data.group_memberships.map(membership => {
                 const user = users.find(u => u.id === membership.user_id);
                 const assignedTicketsCount = tickets.filter(ticket => ticket.assignee_id === membership.user_id).length;
-                
+
                 return {
                     ...membership,
                     group_name: groupNames[membership.group_id.toString()] || 'Unknown Group',
@@ -495,6 +495,118 @@ export class ZendeskService {
             });
         } catch (error) {
             throw new Error(`Error fetching agents with groups: ${error.response?.data || error.message}`);
+        }
+    }
+
+    async getActiveChats(): Promise<ChatConversationResponseDto[]> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats/online`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            return response.data.chats.map(chat => ({
+                id: chat.id,
+                status: chat.status,
+                visitor: {
+                    name: chat.visitor?.name || 'Anonymous',
+                    email: chat.visitor?.email || 'no-email'
+                },
+                agent: chat.agent ? {
+                    id: chat.agent.id,
+                    name: chat.agent.name
+                } : undefined,
+                created_at: chat.created_at,
+                updated_at: chat.updated_at
+            }));
+        } catch (error) {
+            console.error('Error fetching active chats:', error.response?.data || error.message);
+            throw new Error(`Error fetching active chats: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
+    async getChatMessages(chatId: string): Promise<ChatMessageResponseDto[]> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            return response.data.messages.map(message => ({
+                id: message.id,
+                message: message.text,
+                sender: message.sender.type,
+                created_at: message.created_at,
+                conversation_id: message.conversation_id
+            }));
+        } catch (error) {
+            console.error('Error fetching chat messages:', error.response?.data || error.message);
+            throw new Error(`Error fetching chat messages: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
+    async sendChatMessage(chatId: string, message: string): Promise<ChatMessageResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.post(`${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`,
+                    { message: { text: message } },
+                    {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                )
+            );
+
+            const sentMessage = response.data.message;
+            return {
+                id: sentMessage.id,
+                message: sentMessage.text,
+                sender: sentMessage.sender.type,
+                created_at: sentMessage.created_at,
+                conversation_id: sentMessage.conversation_id
+            };
+        } catch (error) {
+            console.error('Error sending chat message:', error.response?.data || error.message);
+            throw new Error(`Error sending chat message: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
+    async sendMessage(chatId: string, message: string): Promise<ChatMessageResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.post(
+                    `${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`,
+                    { message: { text: message } },
+                    {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                )
+            );
+
+            return response.data.message;
+        } catch (error) {
+            throw new Error(`Error sending message: ${error.message}`);
         }
     }
 

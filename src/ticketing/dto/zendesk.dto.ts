@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsEmail, IsOptional, IsNumber, IsEnum, IsArray, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateTicketDto {
     @ApiProperty({ description: 'Email of the ticket requester' })
@@ -162,3 +163,78 @@ export class GroupMembershipResponseDto {
         assigned_tickets_count: number;
     };
 } 
+
+export class ChatVisitor {
+    @ApiProperty()
+    @IsString()
+    name: string;
+
+    @ApiProperty()
+    @IsString()
+    email: string;
+}
+
+export class ChatAgent {
+    @ApiProperty()
+    @IsNumber()
+    id: number;
+
+    @ApiProperty()
+    @IsString()
+    name: string;
+}
+
+export class ChatConversationResponseDto {
+    @ApiProperty()
+    @IsNumber()
+    id: number;
+
+    @ApiProperty()
+    @IsString()
+    status: string;
+
+    @ApiProperty({ type: () => ChatVisitor })
+    @Type(() => ChatVisitor)
+    visitor: ChatVisitor;
+
+    @ApiProperty({ type: () => ChatAgent, required: false })
+    @Type(() => ChatAgent)
+    @IsOptional()
+    agent?: ChatAgent;
+
+    @ApiProperty()
+    @IsString()
+    created_at: string;
+
+    @ApiProperty()
+    @IsString()
+    updated_at: string;
+}
+
+export class ChatMessageDto {
+    @ApiProperty({ description: 'Message content' })
+    @IsString()
+    message: string;
+}
+
+export class ChatMessageResponseDto {
+    @ApiProperty()
+    @IsNumber()
+    id: number;
+
+    @ApiProperty()
+    @IsString()
+    message: string;
+
+    @ApiProperty()
+    @IsString()
+    sender: string;
+
+    @ApiProperty()
+    @IsString()
+    created_at: string;
+
+    @ApiProperty()
+    @IsNumber()
+    conversation_id: number;
+}

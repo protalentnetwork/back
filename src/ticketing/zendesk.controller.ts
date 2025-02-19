@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
-import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto } from './dto/zendesk.dto';
+import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatMessageDto, ChatConversationResponseDto } from './dto/zendesk.dto';
 
 @ApiTags('Zendesk')
 @Controller('zendesk')
@@ -82,5 +82,30 @@ export class ZendeskController {
     @ApiResponse({ type: [GroupMembershipResponseDto] })
     async getAgentsWithGroups() {
         return this.zendeskService.getAgentsWithGroups();
+    }
+
+    @Get('chats/active')
+    @ApiOperation({ summary: 'Get all active chats' })
+    @ApiResponse({ type: [ChatConversationResponseDto] })
+    async getActiveChats() {
+        return this.zendeskService.getActiveChats();
+    }
+
+    @Get('chats/:chatId/messages')
+    @ApiOperation({ summary: 'Get messages from a specific chat' })
+    @ApiResponse({ type: [ChatMessageResponseDto] })
+    async getChatMessages(@Param('chatId') chatId: string) {
+        return this.zendeskService.getChatMessages(chatId);
+    }
+
+    @Post('chats/:chatId/messages')
+    @ApiOperation({ summary: 'Send a message to a chat' })
+    @ApiBody({ type: ChatMessageDto })
+    @ApiResponse({ type: ChatMessageResponseDto })
+    async sendChatMessage(
+        @Param('chatId') chatId: string,
+        @Body() messageDto: ChatMessageDto
+    ) {
+        return this.zendeskService.sendMessage(chatId, messageDto.message);
     }
 }
