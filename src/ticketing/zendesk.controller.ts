@@ -88,7 +88,12 @@ export class ZendeskController {
     @ApiOperation({ summary: 'List all chats' })
     @ApiResponse({ type: [ChatConversationResponseDto] })
     async getAllChats(): Promise<ChatConversationResponseDto[]> {
-        return this.zendeskService.getChats();
+        try {
+            return await this.zendeskService.getChats();
+        } catch (error) {
+            console.error("Error en getAllChats:", error);
+            throw new Error('Failed to fetch chats');
+        }
     }
 
     @Get('chat/chats/search')
