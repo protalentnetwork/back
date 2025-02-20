@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { env } from 'process';
@@ -8,7 +8,21 @@ import { Ticket, TicketWithoutUser, User, Comment } from './zendesk.types';
 
 @Injectable()
 export class ZendeskService {
+    private readonly logger = new Logger(ZendeskService.name);
     constructor(private readonly httpService: HttpService) { }
+
+
+
+    private getAuthHeader(): string {
+        // Autenticación Basic (para Tickets, Usuarios, etc.)
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+        return `Basic ${auth}`;
+    }
+
+    private getOAuthHeader(): string {
+        // Autenticación OAuth (para Chat)
+        return `Bearer ${process.env.ZENDESK_CHAT_TOKEN}`;
+    }
 
     async getAllAgents(): Promise<UserResponseDto[]> {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
@@ -522,24 +536,21 @@ export class ZendeskService {
 
         try {
             const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chat/chats/${chatId}`, {
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chat/conversations/${chatId}/messages`, {
                     headers: {
-                        'Authorization': `Basic ${auth}`,
+                        'Authorization': this.getOAuthHeader(),
                         'Content-Type': 'application/json',
-                    }
+                    },
                 })
             );
 
-            // Los mensajes están en el historial del chat
-            return response.data.history
-                .filter(event => event.type === 'chat.msg')
-                .map(msg => ({
-                    id: msg.id || Date.now(),
-                    message: msg.msg,
-                    sender: msg.name.includes('Visitor') ? 'visitor' : 'agent',
-                    created_at: msg.timestamp,
-                    conversation_id: chatId
-                }));
+            return response.data.messages.map(msg => ({
+                id: msg.id,
+                message: msg.text,
+                sender: msg.author_type === 'visitor' ? 'visitor' : 'agent',
+                created_at: msg.timestamp,
+                conversation_id: chatId
+            }));
         } catch (error) {
             throw new Error(`Error fetching chat messages: ${error.message}`);
         }
@@ -588,40 +599,37 @@ export class ZendeskService {
     }
 
 
-    async getChats() {
+    async getChats(): Promise<ChatConversationResponseDto[]> {
         try {
-            // Usar el OAuth token directamente
             const response = await firstValueFrom(
-                this.httpService.get('https://404crafters.zendesk.com/api/v2/chat/chats', {
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chat/conversations`, { // URL CORRECTA
                     headers: {
-                        'Authorization': `Bearer ${process.env.ZENDESK_TOKEN}`, // Usando el token OAuth
+                        'Authorization': this.getOAuthHeader(), // Usando OAuth
                         'Content-Type': 'application/json',
-                    }
+                    },
                 })
             );
 
-            // Log para debugging
-            console.log('Response status:', response.status);
-            console.log('Response data:', response.data);
+            this.logger.debug('Response status:', response.status); // Usando Logger
+            this.logger.debug('Response data:', response.data);
 
-            const chats = Array.isArray(response.data.chats) ? response.data.chats : [];
-
-            return chats.map(chat => ({
-                id: chat.id,
+            // Manejo de la respuesta (adaptado a la estructura correcta)
+            const conversations = response.data.conversations || []; // Accede a conversations
+            return conversations.map(conversation => ({ // Mapea las conversaciones
+                id: conversation.id,
                 visitor: {
-                    name: chat.visitor?.name || 'Anonymous',
-                    email: chat.visitor?.email || ''
+                    name: conversation.visitor?.name || 'Anonymous',
+                    email: conversation.visitor?.email || '',
                 },
-                status: chat.type === 'offline_msg' ? 'offline' : 'online',
-                timestamp: chat.timestamp,
-                agent: chat.agent_names?.[0] ? {
-                    name: chat.agent_names[0]
-                } : undefined,
-                lastMessage: chat.message || chat.history?.[chat.history.length - 1]?.msg || ''
+                status: conversation.status === 'offline' ? 'offline' : 'online', // Ajustado a la API
+                timestamp: conversation.timestamp,
+                agent: conversation.agent ? { name: conversation.agent.name } : undefined, // Accede a agent.name
+                lastMessage: conversation.last_message?.text || '', // Accede a last_message.text
             }));
 
+
         } catch (error) {
-            console.error('Chat API Error:', {
+            this.logger.error('Chat API Error:', {  // Usando Logger
                 status: error.response?.status,
                 statusText: error.response?.statusText,
                 data: error.response?.data,
