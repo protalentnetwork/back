@@ -88,12 +88,7 @@ export class ZendeskController {
     @ApiOperation({ summary: 'List all chats' })
     @ApiResponse({ type: [ChatConversationResponseDto] })
     async getAllChats(): Promise<ChatConversationResponseDto[]> {
-        try {
-            return await this.zendeskService.getChats();
-        } catch (error) {
-            console.error("Error en getAllChats:", error); // Log del error
-            throw new Error('Failed to fetch chats'); // Lanza una excepción o devuelve un error 500
-        }
+        return this.zendeskService.getChats();
     }
 
     @Get('chat/chats/search')
@@ -101,6 +96,17 @@ export class ZendeskController {
     @ApiResponse({ type: [ChatConversationResponseDto] })
     async searchChats(@Query('q') query: string) {
         return this.zendeskService.searchChats(query);
+    }
+
+    @Post('chat/chats/:chatId/messages')
+    @ApiOperation({ summary: 'Send a message in a chat' })
+    @ApiBody({ type: ChatMessageDto })
+    @ApiResponse({ type: ChatMessageResponseDto })
+    async sendChatMessage(
+        @Param('chatId') chatId: string,
+        @Body() messageDto: ChatMessageDto
+    ) {
+        return this.zendeskService.sendChatMessage(chatId, messageDto.message);
     }
 
     @Get('chat/chats/:chatId')
@@ -116,27 +122,5 @@ export class ZendeskController {
     @ApiResponse({ type: ChatConversationResponseDto })
     async createOfflineMessage(@Body() messageDto: ChatMessageDto) {
         return this.zendeskService.createOfflineMessage(messageDto);
-    }
-
-    @Put('chat/chats/:chatId')
-    @ApiOperation({ summary: 'Update chat' })
-    @ApiResponse({ type: ChatConversationResponseDto })
-    async updateChat(
-        @Param('chatId') chatId: string,
-        @Body() updateData: any
-    ) {
-        return this.zendeskService.updateChat(chatId, updateData);
-    }
-
-    @Delete('chat/chats/:chatId')
-    @ApiOperation({ summary: 'Delete chat' })
-    async deleteChat(@Param('chatId') chatId: string) {
-        return this.zendeskService.deleteChat(chatId);
-    }
-
-    @Delete('chat/chats')
-    @ApiOperation({ summary: 'Bulk delete chats' })
-    async bulkDeleteChats(@Query('ids') ids: string) {
-        return this.zendeskService.bulkDeleteChats(ids);
     }
 }

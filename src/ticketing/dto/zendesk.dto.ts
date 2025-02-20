@@ -3,238 +3,250 @@ import { IsString, IsEmail, IsOptional, IsNumber, IsEnum, IsArray, IsBoolean } f
 import { Type } from 'class-transformer';
 
 export class CreateTicketDto {
-    @ApiProperty({ description: 'Email of the ticket requester' })
-    @IsEmail()
-    email: string;
+  @ApiProperty({ description: 'Email of the ticket requester' })
+  @IsEmail()
+  email: string;
 
-    @ApiProperty({ description: 'Subject of the ticket' })
-    @IsString()
-    subject: string;
+  @ApiProperty({ description: 'Subject of the ticket' })
+  @IsString()
+  subject: string;
 
-    @ApiProperty({ description: 'Description of the ticket' })
-    @IsString()
-    description: string;
+  @ApiProperty({ description: 'Description of the ticket' })
+  @IsString()
+  description: string;
 
-    @ApiProperty({
-        description: 'Custom field of the ticket',
-        example: [{
-            id: 1,
-            value: "Custom value"
-        }],
-        type: 'array'
-    })
-    @IsArray()
-    custom_fields: {
-        id?: number;
-        value: string;
-    }[];
+  @ApiProperty({
+    description: 'Custom field of the ticket',
+    example: [{ id: 1, value: 'Custom value' }],
+    type: 'array',
+  })
+  @IsArray()
+  @IsOptional()
+  custom_fields?: { id: number; value: string }[];
 }
 
 export class ChangeTicketStatusDto {
-    @ApiProperty({ description: 'New status for the ticket', enum: ['new', 'open', 'pending', 'hold', 'solved', 'closed'] })
-    @IsEnum(['new', 'open', 'pending', 'hold', 'solved', 'closed'])
-    status: string;
+  @ApiProperty({
+    description: 'New status for the ticket',
+    enum: ['new', 'open', 'pending', 'hold', 'solved', 'closed'],
+  })
+  @IsEnum(['new', 'open', 'pending', 'hold', 'solved', 'closed'])
+  status: string;
 }
 
 export class AssignTicketDto {
-    @ApiProperty({ description: 'ID of the agent to assign the ticket to' })
-    @IsString()
-    userId: string;
+  @ApiProperty({ description: 'ID of the agent to assign the ticket to' })
+  @IsString() // Cambiado a string para consistencia con Zendesk IDs
+  userId: string;
 }
 
 export class TicketResponseDto {
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty()
+  @IsNumber()
+  id: number;
 
-    @ApiProperty()
-    @IsString()
-    subject: string;
+  @ApiProperty()
+  @IsString()
+  subject: string;
 
-    @ApiProperty()
-    @IsString()
-    description: string;
+  @ApiProperty()
+  @IsString()
+  description: string;
 
-    @ApiProperty()
-    @IsString()
-    status: string;
+  @ApiProperty()
+  @IsString()
+  status: string;
 
-    @ApiProperty()
-    @IsNumber()
-    requester_id: number;
+  @ApiProperty()
+  @IsNumber()
+  requester_id: number;
 
-    @ApiProperty()
-    @IsOptional()
-    @IsNumber()
-    assignee_id?: number;
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  assignee_id?: number;
 
-    @ApiProperty()
-    user?: {
-        name: string;
-        email: string;
-    };
+  @ApiProperty({ required: false })
+  @IsOptional()
+  user?: {
+    name: string;
+    email: string;
+  };
 
-    @ApiProperty()
-    @IsNumber()
-    group_id: number;
+  @ApiProperty()
+  @IsNumber()
+  group_id: number;
 
-    @ApiProperty({ type: 'array' })
-    @IsOptional()
-    custom_fields?: {
-        id: number;
-        value: string;
-    }[];
+  @ApiProperty({ type: 'array', required: false })
+  @IsOptional()
+  custom_fields?: { id: number; value: string }[];
 }
 
 export class CommentResponseDto {
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty()
+  @IsNumber()
+  id: number;
 
-    @ApiProperty()
-    @IsString()
-    body: string;
+  @ApiProperty()
+  @IsString()
+  body: string;
 
-    @ApiProperty()
-    @IsNumber()
-    author_id: number;
+  @ApiProperty()
+  @IsNumber()
+  author_id: number;
 
-    @ApiProperty()
-    @IsString()
-    created_at: string;
+  @ApiProperty()
+  @IsString()
+  created_at: string;
 }
 
 export class UserResponseDto {
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty()
+  @IsNumber()
+  id: number;
 
-    @ApiProperty()
-    @IsString()
-    name: string;
+  @ApiProperty()
+  @IsString()
+  name: string;
 
-    @ApiProperty()
-    @IsEmail()
-    email: string;
+  @ApiProperty()
+  @IsEmail()
+  email: string;
 
-    @ApiProperty()
-    @IsString()
-    role: string;
+  @ApiProperty()
+  @IsString()
+  role: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  default_group_id?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  organization_id?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  custom_role_id?: number;
 }
 
 export class GroupMembershipResponseDto {
-    @ApiProperty()
-    @IsString()
-    url: string;
+  @ApiProperty()
+  @IsString()
+  url: string;
 
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty()
+  @IsNumber()
+  id: number;
 
-    @ApiProperty()
-    @IsNumber()
-    user_id: number;
+  @ApiProperty()
+  @IsNumber()
+  user_id: number;
 
-    @ApiProperty()
-    @IsNumber()
-    group_id: number;
+  @ApiProperty()
+  @IsNumber()
+  group_id: number;
 
-    @ApiProperty()
-    @IsString()
-    group_name: string;
+  @ApiProperty()
+  @IsString()
+  group_name: string;
 
-    @ApiProperty()
-    @IsString()
-    created_at: string;
+  @ApiProperty()
+  @IsString()
+  created_at: string;
 
-    @ApiProperty()
-    @IsString()
-    updated_at: string;
+  @ApiProperty()
+  @IsString()
+  updated_at: string;
 
-    @ApiProperty()
-    @IsBoolean()
-    default: boolean;
+  @ApiProperty()
+  @IsBoolean()
+  default: boolean;
 
-    @ApiProperty()
-    user?: {
-        name: string;
-        email: string;
-        role: string;
-        assigned_tickets_count: number;
-    };
-} 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  user?: {
+    name: string;
+    email: string;
+    role: string;
+    assigned_tickets_count: number;
+  };
+}
 
 export class ChatVisitor {
-    @ApiProperty()
-    @IsString()
-    name: string;
+  @ApiProperty()
+  @IsString()
+  name: string;
 
-    @ApiProperty()
-    @IsString()
-    email: string;
+  @ApiProperty()
+  @IsString()
+  email: string;
 }
 
 export class ChatAgent {
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty({ description: 'Agent ID' })
+  @IsString() // Cambiado a string para coincidir con Zendesk Chat API
+  id: string;
 
-    @ApiProperty()
-    @IsString()
-    name: string;
+  @ApiProperty({ description: 'Agent name' })
+  @IsString()
+  name: string;
 }
 
 export class ChatConversationResponseDto {
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty()
+  @IsString() // Cambiado a string para coincidir con Zendesk Chat API
+  id: string;
 
-    @ApiProperty()
-    @IsString()
-    status: string;
+  @ApiProperty()
+  @IsString()
+  status: string;
 
-    @ApiProperty({ type: () => ChatVisitor })
-    @Type(() => ChatVisitor)
-    visitor: ChatVisitor;
+  @ApiProperty({ type: () => ChatVisitor })
+  @Type(() => ChatVisitor)
+  visitor: ChatVisitor;
 
-    @ApiProperty({ type: () => ChatAgent, required: false })
-    @Type(() => ChatAgent)
-    @IsOptional()
-    agent?: ChatAgent;
+  @ApiProperty({ type: () => ChatAgent, required: false })
+  @Type(() => ChatAgent)
+  @IsOptional()
+  agent?: ChatAgent;
 
-    @ApiProperty()
-    @IsString()
-    created_at: string;
+  @ApiProperty()
+  @IsString()
+  timestamp: string; // Cambiado a timestamp para coincidir con tu uso
 
-    @ApiProperty()
-    @IsString()
-    updated_at: string;
+  @ApiProperty()
+  @IsString()
+  lastMessage: string; // Agregado para coincidir con el frontend
 }
 
 export class ChatMessageDto {
-    @ApiProperty({ description: 'Message content' })
-    @IsString()
-    message: string;
+  @ApiProperty({ description: 'Message content' })
+  @IsString()
+  message: string;
 }
 
 export class ChatMessageResponseDto {
-    @ApiProperty()
-    @IsNumber()
-    id: number;
+  @ApiProperty()
+  @IsString() // Cambiado a string para coincidir con Zendesk Chat API
+  id: string;
 
-    @ApiProperty()
-    @IsString()
-    message: string;
+  @ApiProperty()
+  @IsString()
+  message: string;
 
-    @ApiProperty()
-    @IsString()
-    sender: string;
+  @ApiProperty()
+  @IsString()
+  sender: string;
 
-    @ApiProperty()
-    @IsString()
-    created_at: string;
+  @ApiProperty()
+  @IsString()
+  created_at: string;
 
-    @ApiProperty()
-    @IsNumber()
-    conversation_id: number;
+  @ApiProperty()
+  @IsString() // Cambiado a string para coincidir con chatId
+  conversation_id: string;
 }

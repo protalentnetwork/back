@@ -557,32 +557,29 @@ export class ZendeskService {
     }
 
     async sendChatMessage(chatId: string, message: string): Promise<ChatMessageResponseDto> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
         try {
             const response = await firstValueFrom(
-                this.httpService.post(`${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`,
+                this.httpService.post(
+                    `${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`,
                     { message: { text: message } },
                     {
                         headers: {
-                            'Authorization': `Basic ${auth}`,
+                            'Authorization': this.getOAuthHeader(),
                             'Content-Type': 'application/json',
                         },
                     }
                 )
             );
-
-            const sentMessage = response.data.message;
+            const msg = response.data.message;
             return {
-                id: sentMessage.id,
-                message: sentMessage.text,
-                sender: sentMessage.sender.type,
-                created_at: sentMessage.created_at,
-                conversation_id: sentMessage.conversation_id
+                id: msg.id,
+                message: msg.text,
+                sender: msg.sender.type,
+                created_at: msg.created_at,
+                conversation_id: chatId,
             };
         } catch (error) {
-            console.error('Error sending chat message:', error.response?.data || error.message);
-            throw new Error(`Error sending chat message: ${error.response?.data?.error || error.message}`);
+            throw new Error(`Error sending message: ${error.response?.data?.error || error.message}`);
         }
     }
 
@@ -602,43 +599,30 @@ export class ZendeskService {
     async getChats(): Promise<ChatConversationResponseDto[]> {
         try {
             const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chat/conversations`, { // URL CORRECTA
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats`, {
                     headers: {
-                        'Authorization': this.getOAuthHeader(), // Usando OAuth
+                        'Authorization': this.getOAuthHeader(),
                         'Content-Type': 'application/json',
                     },
                 })
             );
-
-            this.logger.debug('Response status:', response.status); // Usando Logger
-            this.logger.debug('Response data:', response.data);
-
-            // Manejo de la respuesta (adaptado a la estructura correcta)
-            const conversations = response.data.conversations || []; // Accede a conversations
-            return conversations.map(conversation => ({ // Mapea las conversaciones
-                id: conversation.id,
+            const chats = response.data.chats || [];
+            return chats.map(chat => ({
+                id: chat.id, // string
                 visitor: {
-                    name: conversation.visitor?.name || 'Anonymous',
-                    email: conversation.visitor?.email || '',
+                    name: chat.visitor?.name || 'Anonymous',
+                    email: chat.visitor?.email || '',
                 },
-                status: conversation.status === 'offline' ? 'offline' : 'online', // Ajustado a la API
-                timestamp: conversation.timestamp,
-                agent: conversation.agent ? { name: conversation.agent.name } : undefined, // Accede a agent.name
-                lastMessage: conversation.last_message?.text || '', // Accede a last_message.text
+                status: chat.status,
+                timestamp: chat.timestamp,
+                agent: chat.agent_ids?.length > 0 ? {
+                    id: chat.agent_ids[0].toString(),
+                    name: chat.agents?.[0]?.display_name || 'Unknown'
+                } : undefined,
+                lastMessage: chat.history?.slice(-1)[0]?.msg || '',
             }));
-
-
         } catch (error) {
-            this.logger.error('Chat API Error:', {  // Usando Logger
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-            });
-
-            if (error.response?.status === 401) {
-                throw new Error('Invalid OAuth token. Please check your ZENDESK_CHAT_TOKEN.');
-            }
-
+            // ... manejo de errores
             throw new Error(`Failed to fetch chats: ${error.response?.data?.error || error.message}`);
         }
     }
@@ -664,23 +648,35 @@ export class ZendeskService {
     }
 
     async getChat(chatId: string): Promise<ChatConversationResponseDto> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
         try {
             const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chat/chats/${chatId}`, {
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats/${chatId}`, {
                     headers: {
-                        'Authorization': `Basic ${auth}`,
+                        'Authorization': this.getOAuthHeader(),
                         'Content-Type': 'application/json',
-                    }
+                    },
                 })
             );
-
-            return response.data;
+            const chat = response.data;
+            return {
+                id: chat.id, // string
+                visitor: {
+                    name: chat.visitor?.name || 'Anonymous',
+                    email: chat.visitor?.email || '',
+                },
+                status: chat.status,
+                timestamp: chat.timestamp,
+                agent: chat.agent_ids?.length > 0 ? {
+                    id: chat.agent_ids[0].toString(),
+                    name: chat.agents?.[0]?.display_name || 'Unknown'
+                } : undefined,
+                lastMessage: chat.history?.slice(-1)[0]?.msg || '',
+            };
         } catch (error) {
-            throw new Error(`Error fetching chat: ${error.message}`);
+            throw new Error(`Error fetching chat: ${error.response?.data?.error || error.message}`);
         }
     }
+
 
     async createOfflineMessage(messageDto: ChatMessageDto): Promise<ChatConversationResponseDto> {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
@@ -717,60 +713,4 @@ export class ZendeskService {
         }
     }
 
-    async updateChat(chatId: string, updateData: any): Promise<ChatConversationResponseDto> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.put(`${env.ZENDESK_URL}/api/v2/chat/chats/${chatId}`,
-                    updateData,
-                    {
-                        headers: {
-                            'Authorization': `Basic ${auth}`,
-                            'Content-Type': 'application/json',
-                        }
-                    }
-                )
-            );
-
-            return response.data;
-        } catch (error) {
-            throw new Error(`Error updating chat: ${error.message}`);
-        }
-    }
-
-    async deleteChat(chatId: string): Promise<void> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            await firstValueFrom(
-                this.httpService.delete(`${env.ZENDESK_URL}/api/v2/chat/chats/${chatId}`, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    }
-                })
-            );
-        } catch (error) {
-            throw new Error(`Error deleting chat: ${error.message}`);
-        }
-    }
-
-    async bulkDeleteChats(ids: string): Promise<void> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            await firstValueFrom(
-                this.httpService.delete(`${env.ZENDESK_URL}/api/v2/chat/chats`, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    },
-                    params: { ids }
-                })
-            );
-        } catch (error) {
-            throw new Error(`Error bulk deleting chats: ${error.message}`);
-        }
-    }
 }
