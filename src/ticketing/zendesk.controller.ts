@@ -84,11 +84,11 @@ export class ZendeskController {
         return this.zendeskService.getAgentsWithGroups();
     }
 
-    @Get('chat/chats')  // Cambio de 'chats/active' a 'chat/chats'
+    @Get('chat/chats')
     @ApiOperation({ summary: 'List all chats' })
-    @ApiResponse({ type: [ChatConversationResponseDto] })
-    async getAllChats() {
-        return this.zendeskService.getChats();
+    @ApiResponse({ type: [ChatConversationResponseDto] }) // Usa el DTO correcto
+    async getAllChats(): Promise<ChatConversationResponseDto[]> {  // Tipo de retorno correcto
+        return this.zendeskService.getChats(); // Retorna directamente el resultado del servicio
     }
 
     @Get('chat/chats/search')
