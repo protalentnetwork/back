@@ -11,17 +11,14 @@ export class ZendeskService {
     private readonly logger = new Logger(ZendeskService.name);
     constructor(private readonly httpService: HttpService) { }
 
-
-
-    private getAuthHeader(): string {
-        // Autenticación Basic (para Tickets, Usuarios, etc.)
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-        return `Basic ${auth}`;
-    }
-
     private getOAuthHeader(): string {
-        // Autenticación OAuth (para Chat)
-        return `Bearer ${process.env.ZENDESK_CHAT_TOKEN}`;
+        const token = process.env.ZENDESK_CHAT_TOKEN;
+        if (!token) {
+            this.logger.error('ZENDESK_CHAT_TOKEN is not defined');
+            throw new Error('ZENDESK_CHAT_TOKEN is not defined');
+        }
+        this.logger.log('Using OAuth token:', token.substring(0, 10) + '...');
+        return `Bearer ${token}`;
     }
 
     async getAllAgents(): Promise<UserResponseDto[]> {
@@ -597,18 +594,28 @@ export class ZendeskService {
 
 
     async getChats(): Promise<ChatConversationResponseDto[]> {
+        const baseUrl = env.ZENDESK_URL;
+        if (!baseUrl) {
+            this.logger.error('ZENDESK_URL is not defined');
+            throw new Error('ZENDESK_URL is not defined');
+        }
+
+        const chatUrl = `${baseUrl}/api/v2/chat/chats`; // Corregido de /api/v2/chats a /api/v2/chat/chats
+        this.logger.log('Fetching chats from:', chatUrl);
+
         try {
             const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats`, {
+                this.httpService.get(chatUrl, {
                     headers: {
                         'Authorization': this.getOAuthHeader(),
                         'Content-Type': 'application/json',
                     },
                 })
             );
+            this.logger.log('Response from Zendesk:', JSON.stringify(response.data, null, 2));
             const chats = response.data.chats || [];
             return chats.map(chat => ({
-                id: chat.id, // string
+                id: chat.id,
                 visitor: {
                     name: chat.visitor?.name || 'Anonymous',
                     email: chat.visitor?.email || '',
@@ -622,7 +629,11 @@ export class ZendeskService {
                 lastMessage: chat.history?.slice(-1)[0]?.msg || '',
             }));
         } catch (error) {
-            // ... manejo de errores
+            this.logger.error('Error fetching chats:', {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data,
+            });
             throw new Error(`Failed to fetch chats: ${error.response?.data?.error || error.message}`);
         }
     }
