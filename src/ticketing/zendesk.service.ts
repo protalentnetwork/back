@@ -589,31 +589,45 @@ export class ZendeskService {
 
 
     async getChats() {
-        const auth = Buffer.from(`${process.env.ZENDESK_EMAIL}/token:${process.env.ZENDESK_TOKEN}`).toString('base64');
-
         try {
-            console.log('Attempting to fetch chats with Zendesk credentials');
+            console.log('Attempting to obtain OAuth token');
 
-            // Usando el endpoint de Zendesk Chat dentro del dominio principal de Zendesk
+            // Primero obtenemos el token OAuth
+            const tokenResponse = await firstValueFrom(
+                this.httpService.post('https://404crafters.zendesk.com/oauth/tokens',
+                    {
+                        grant_type: 'client_credentials',
+                        client_id: 'zendesk-chat-backoffice',
+                        client_secret: 'zendesk-chat-implement',
+                        scope: 'read write chat:read chat:write'
+                    },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                )
+            );
+
+            console.log('Token obtained successfully');
+
+            const accessToken = tokenResponse.data.access_token;
+
+            // Usamos el token para obtener los chats
             const response = await firstValueFrom(
                 this.httpService.get('https://404crafters.zendesk.com/api/v2/chat/chats', {
                     headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
                     }
                 })
             );
 
-            console.log('Response status:', response.status);
-            console.log('Response structure:', Object.keys(response.data));
-
-            // Si no hay chats, devolver array vacío
             if (!response.data || !response.data.chats) {
                 console.warn('No chats found or unexpected response structure:', response.data);
                 return [];
             }
 
-            // Transformar los datos para el frontend
             return response.data.chats.map(chat => ({
                 id: chat.id,
                 visitor: {
@@ -629,32 +643,11 @@ export class ZendeskService {
             }));
 
         } catch (error) {
-            // Log detallado del error
             console.error('Chat API Error:', {
                 status: error.response?.status,
                 statusText: error.response?.statusText,
                 data: error.response?.data,
-                headers: error.response?.headers,
-                url: error.config?.url
             });
-
-            // Si el error es de autenticación, intentar verificar las credenciales
-            if (error.response?.status === 401) {
-                try {
-                    // Intentar hacer una llamada de prueba a un endpoint conocido
-                    await firstValueFrom(
-                        this.httpService.get('https://404crafters.zendesk.com/api/v2/users/me', {
-                            headers: {
-                                'Authorization': `Basic ${auth}`,
-                                'Content-Type': 'application/json',
-                            }
-                        })
-                    );
-                    throw new Error('Zendesk credentials are valid but Chat API access is denied. Please verify Chat subscription.');
-                } catch (authError) {
-                    throw new Error('Failed to authenticate with Zendesk. Please check your credentials.');
-                }
-            }
 
             throw new Error(`Failed to fetch chats: ${error.response?.data?.error || error.message}`);
         }
