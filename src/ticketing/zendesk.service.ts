@@ -590,56 +590,34 @@ export class ZendeskService {
 
     async getChats() {
         try {
-            console.log('Attempting to obtain OAuth token');
-
-            // Primero obtenemos el token OAuth
-            const tokenResponse = await firstValueFrom(
-                this.httpService.post('https://404crafters.zendesk.com/oauth/tokens',
-                    {
-                        grant_type: 'client_credentials',
-                        client_id: 'zendesk-chat-backoffice',
-                        client_secret: 'zendesk-chat-implement',
-                        scope: 'read write chat:read chat:write'
-                    },
-                    {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                )
-            );
-
-            console.log('Token obtained successfully');
-
-            const accessToken = tokenResponse.data.access_token;
-
-            // Usamos el token para obtener los chats
+            // Usar el OAuth token directamente
             const response = await firstValueFrom(
                 this.httpService.get('https://404crafters.zendesk.com/api/v2/chat/chats', {
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${process.env.ZENDESK_TOKEN}`, // Usando el token OAuth
+                        'Content-Type': 'application/json',
                     }
                 })
             );
 
-            if (!response.data || !response.data.chats) {
-                console.warn('No chats found or unexpected response structure:', response.data);
-                return [];
-            }
+            // Log para debugging
+            console.log('Response status:', response.status);
+            console.log('Response data:', response.data);
 
-            return response.data.chats.map(chat => ({
+            const chats = Array.isArray(response.data.chats) ? response.data.chats : [];
+
+            return chats.map(chat => ({
                 id: chat.id,
                 visitor: {
                     name: chat.visitor?.name || 'Anonymous',
                     email: chat.visitor?.email || ''
                 },
-                status: chat.status || 'unknown',
+                status: chat.type === 'offline_msg' ? 'offline' : 'online',
                 timestamp: chat.timestamp,
                 agent: chat.agent_names?.[0] ? {
                     name: chat.agent_names[0]
                 } : undefined,
-                lastMessage: chat.history?.[chat.history.length - 1]?.msg || ''
+                lastMessage: chat.message || chat.history?.[chat.history.length - 1]?.msg || ''
             }));
 
         } catch (error) {
@@ -648,6 +626,10 @@ export class ZendeskService {
                 statusText: error.response?.statusText,
                 data: error.response?.data,
             });
+
+            if (error.response?.status === 401) {
+                throw new Error('Invalid OAuth token. Please check your ZENDESK_CHAT_TOKEN.');
+            }
 
             throw new Error(`Failed to fetch chats: ${error.response?.data?.error || error.message}`);
         }
