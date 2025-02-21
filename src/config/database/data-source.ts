@@ -1,22 +1,27 @@
-import { DataSource } from 'typeorm';
-import * as dotenv from 'dotenv';
+import { DataSource, DataSourceOptions } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { config } from 'dotenv';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
-import { Ticket } from '../../payment/entities/ticket.entity';
 import { Log } from '../../payment/entities/log.entity';
+import { Chat } from '../../chat/entities/chat.entity';
+import { Account } from '../../payment/entities/account.entity';
 
-dotenv.config();
+config();
 
-const dataSource = new DataSource({
-    type: 'postgres',
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
-    username: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
-    entities: [User, Transaction, Ticket, Log],
-    migrations: ['src/migrations/*.ts'],
-    synchronize: false,
-});
+const configService = new ConfigService();
 
+export const dataSourceOptions: DataSourceOptions = {
+  type: 'postgres',
+  host: configService.get('DB_HOST'),
+  port: configService.get('DB_PORT'),
+  username: configService.get('DB_USERNAME'),
+  password: configService.get('DB_PASSWORD'),
+  database: configService.get('DB_DATABASE'),
+  entities: [User, Transaction, Log, Chat, Account],
+  migrations: ['dist/migrations/*.js'],
+  synchronize: false,
+};
+
+const dataSource = new DataSource(dataSourceOptions);
 export default dataSource; 

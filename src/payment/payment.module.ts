@@ -1,26 +1,20 @@
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { Transaction } from "./entities/transaction.entity";
-import { PaymentController } from "./payment.controller";
-import { PaymentService } from "./payment.service";
-import { Module } from "@nestjs/common";
-import { ConfigModule } from '@nestjs/config'; // Añade esta importación
-import { Ticket } from "./entities/ticket.entity";
-import { Log } from "./entities/log.entity";
-import { MercadoPagoRepository } from "./repositories/mercado-pago.repository";
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { PaymentController } from './payment.controller';
+import { PaymentService } from './payment.service';
+import { Transaction } from './entities/transaction.entity';
+import { Log } from './entities/log.entity';
 
 @Module({
-    imports: [
-        ConfigModule, // Añade esta línea
-        TypeOrmModule.forFeature([Transaction, Ticket, Log])
-    ],
-    controllers: [PaymentController],
-    providers: [
-        PaymentService,
-        MercadoPagoRepository,
-        {
-            provide: 'PaymentGateway',
-            useClass: MercadoPagoRepository,
-        }
-    ],
+  imports: [TypeOrmModule.forFeature([Transaction, Log])],
+  controllers: [PaymentController],
+  providers: [
+    PaymentService,
+    {
+      provide: 'PaymentGateway',
+      useClass: PaymentService
+    }
+  ],
+  exports: [PaymentService]
 })
 export class PaymentModule { }

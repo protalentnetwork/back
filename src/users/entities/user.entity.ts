@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
-import { Log, Ticket, Transaction } from '../../payment/entities';
+import { Log, Transaction } from '../../payment/entities';
 
 @Entity()
 export class User {
@@ -15,7 +15,7 @@ export class User {
     @Column({ name: 'role', nullable: false })
     role: string;
 
-    @Column({ name: 'status', nullable: false })
+    @Column({ name: 'status', nullable: false, default: 'active' })
     status: string;
 
     @Column({ name: 'office', nullable: false })
@@ -27,14 +27,23 @@ export class User {
     })
     createdAt: Date;
 
-    @Column({ name: 'withdrawal', nullable: false })
+    @Column({ name: 'withdrawal', nullable: false, default: 'enabled' })
     withdrawal: string;
+
+    @Column({ name: 'last_login_date', type: 'timestamp with time zone', nullable: true })
+    lastLoginDate: Date;
+
+    @Column({ name: 'last_logout_date', type: 'timestamp with time zone', nullable: true })
+    lastLogoutDate: Date;
+
+    @Column({ name: 'phone_number', nullable: true })
+    phoneNumber: string;
+
+    @Column({ name: 'description', type: 'text', nullable: true })
+    description: string;
 
     @OneToMany(() => Transaction, (transaction) => transaction.user)
     transactions: Transaction[];
-
-    @OneToMany(() => Ticket, ticket => ticket.user)
-    tickets: Ticket[];
 
     @OneToMany(() => Log, log => log.user)
     logs: Log[];

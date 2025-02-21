@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from "./entities/user.entity";
@@ -28,5 +28,16 @@ export class UserService {
         return this.userRepository.save(user);
     }
 
+    async updateLastLoginDate(userId: number): Promise<User> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId }
+        });
 
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        user.lastLoginDate = new Date();
+        return this.userRepository.save(user);
+    }
 }

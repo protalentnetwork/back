@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CreateUserDto, UserResponseDto } from './dto/user.dto';
 import { UserService } from './user.service';
@@ -22,7 +22,7 @@ export class UserController {
     description: 'Bad request - Invalid user data'
   })
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    return this.userService.create(createUserDto as any);
+    return this.userService.create(createUserDto);
   }
 
   @Get()
@@ -36,4 +36,14 @@ export class UserController {
     return this.userService.findAll();
   }
 
+  @Patch(':id/login')
+  @ApiOperation({ summary: 'Update user last login date' })
+  @ApiResponse({
+    status: 200,
+    description: 'User last login date updated successfully',
+    type: UserResponseDto
+  })
+  async updateLastLoginDate(@Param('id') id: number): Promise<UserResponseDto> {
+    return this.userService.updateLastLoginDate(id);
+  }
 }

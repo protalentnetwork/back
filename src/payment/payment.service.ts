@@ -1,29 +1,48 @@
-import { IPaymentGateway } from "./payment.types";
+import { Injectable } from '@nestjs/common';
+import { IPaymentGateway, PaymentPreference } from './payment.types';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Transaction } from './entities/transaction.entity';
 
-export class PaymentService {
+@Injectable()
+export class PaymentService implements IPaymentGateway {
     constructor(
-        private paymentGateway: IPaymentGateway
-    ) { }
+        @InjectRepository(Transaction)
+        private transactionRepository: Repository<Transaction>
+    ) {}
 
-    async createPaymentPreference(data: {
-        productId: string;
-        title: string;
-        price: number;
-        metadata: Record<string, any>;
-    }) {
-        return this.paymentGateway.createPreference({
-            items: [{
-                id: data.productId,
-                title: data.title,
-                unit_price: data.price,
-                quantity: 1,
-            }],
-            metadata: data.metadata,
-        });
+    async createPreference(preference: PaymentPreference): Promise<string> {
+        // Aquí implementarías la lógica real de creación de preferencia de pago
+        // Por ahora retornamos una URL de ejemplo
+        return `https://checkout.example.com/${Date.now()}`;
     }
 
-    async verifyPayment(paymentId: string) {
-        return this.paymentGateway.verifyPayment(paymentId);
+    async verifyPayment(paymentId: string): Promise<{ status: string; metadata: Record<string, any> }> {
+        // Aquí implementarías la verificación real del pago
+        // Por ahora retornamos un estado de ejemplo
+        return {
+            status: "approved",
+            metadata: {
+                paymentId,
+                timestamp: new Date().toISOString()
+            }
+        };
+    }
+
+    async createTransaction(userId: number, amount: number, type: string): Promise<Transaction> {
+        const transaction = this.transactionRepository.create({
+            user: { id: userId },
+            amount,
+            type,
+            status: 'pending'
+        });
+        
+        return this.transactionRepository.save(transaction);
+    }
+
+    async updateTransactionStatus(transactionId: number, status: string): Promise<Transaction> {
+        await this.transactionRepository.update(transactionId, { status });
+        return this.transactionRepository.findOne({ where: { id: transactionId } });
     }
 }
 
