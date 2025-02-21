@@ -17,13 +17,28 @@ export class ChatGateway {
   @WebSocketServer()
   server: Server;
 
-  private activeChats: Map<string, string> = new Map(); // userId -> socketId del cliente
-  private agentSockets: Map<string, string> = new Map(); // agentId -> socketId del agente
+  private activeChats: Map<string, string> = new Map();
+  private agentSockets: Map<string, string> = new Map();
 
-  constructor(private readonly chatService: ChatService) { }
+  constructor(private readonly chatService: ChatService) {
+    console.log('ChatGateway inicializado');
+  }
+
+  afterInit() {
+    console.log('WebSocket Server inicializado');
+  }
+
+  handleConnection(client: Socket) {
+    console.log(`Cliente conectado: ${client.id}`);
+  }
+
+  handleDisconnect(client: Socket) {
+    console.log(`Cliente desconectado: ${client.id}`);
+  }
 
   @SubscribeMessage('joinChat')
   async handleJoinChat(@ConnectedSocket() client: Socket, @MessageBody() payload: { userId: string }) {
+    console.log(`Cliente ${payload.userId} se unió al chat`);
     this.activeChats.set(payload.userId, client.id);
     const activeChats = await this.chatService.getActiveChats();
     this.server.emit('activeChats', activeChats);
@@ -34,6 +49,7 @@ export class ChatGateway {
 
   @SubscribeMessage('joinAgent')
   async handleJoinAgent(@ConnectedSocket() client: Socket, @MessageBody() payload: { agentId: string }) {
+    console.log(`Agente ${payload.agentId} se unió`);
     this.agentSockets.set(payload.agentId, client.id);
     const activeChats = await this.chatService.getActiveChats();
     this.server.to(client.id).emit('activeChats', activeChats);
