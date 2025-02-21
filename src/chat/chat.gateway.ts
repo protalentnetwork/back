@@ -4,7 +4,14 @@ import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: [
+      'https://backoffice-casino-front-production.up.railway.app',
+      'http://localhost:3000',
+      'http://localhost:8000',
+    ],
+    credentials: true,
+  },
 })
 export class ChatGateway {
   @WebSocketServer()
@@ -13,7 +20,7 @@ export class ChatGateway {
   private activeChats: Map<string, string> = new Map(); // userId -> socketId del cliente
   private agentSockets: Map<string, string> = new Map(); // agentId -> socketId del agente
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService) { }
 
   @SubscribeMessage('joinChat')
   async handleJoinChat(@ConnectedSocket() client: Socket, @MessageBody() payload: { userId: string }) {
