@@ -2,6 +2,8 @@
 import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, ConnectedSocket } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
+import { JoinChatDto, JoinAgentDto, AssignAgentDto } from './dto/chat.dto';
+import { MessageDto, AgentMessageDto } from './dto/message.dto';
 
 @WebSocketGateway({
   cors: {
@@ -37,7 +39,10 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('joinChat')
-  async handleJoinChat(@ConnectedSocket() client: Socket, @MessageBody() payload: { userId: string }) {
+  async handleJoinChat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: JoinChatDto
+  ) {
     console.log(`Cliente ${payload.userId} se unió al chat`);
     this.activeChats.set(payload.userId, client.id);
     const activeChats = await this.chatService.getActiveChats();
@@ -48,7 +53,10 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('joinAgent')
-  async handleJoinAgent(@ConnectedSocket() client: Socket, @MessageBody() payload: { agentId: string }) {
+  async handleJoinAgent(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: JoinAgentDto
+  ) {
     console.log(`Agente ${payload.agentId} se unió`);
     this.agentSockets.set(payload.agentId, client.id);
     const activeChats = await this.chatService.getActiveChats();
@@ -56,7 +64,7 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('assignAgent')
-  async handleAssignAgent(@MessageBody() data: { userId: string; agentId: string }) {
+  async handleAssignAgent(@MessageBody() data: AssignAgentDto) {
     console.log(`Asignando ${data.userId} a ${data.agentId}`);
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
     if (!assignedAgent) {
@@ -72,7 +80,7 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('message')
-  async handleMessage(@MessageBody() data: { userId: string; message: string; agentId: string }) {
+  async handleMessage(@MessageBody() data: AgentMessageDto) {
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
     if (assignedAgent === data.agentId) {
       const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'agent', data.agentId);
@@ -100,7 +108,7 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('clientMessage')
-  async handleClientMessage(@MessageBody() data: { userId: string; message: string }) {
+  async handleClientMessage(@MessageBody() data: MessageDto) {
     console.log(`Mensaje recibido de cliente ${data.userId}: ${data.message}`);
     const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'client');
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
