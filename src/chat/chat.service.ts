@@ -44,8 +44,9 @@ export class ChatService {
   async getActiveChats(): Promise<{ userId: string; agentId: string | null }[]> {
     const messages = await this.chatRepository
       .createQueryBuilder('chat')
-      .select('DISTINCT chat.userId', 'userId')
-      .addSelect('chat.agentId', 'agentId')
+      .distinctOn(['chat.userId'])
+      .select(['chat.userId', 'chat.agentId'])
+      .orderBy('chat.userId')
       .getRawMany();
     return messages;
   }
