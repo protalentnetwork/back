@@ -1,30 +1,5 @@
-import { Ticket } from 'src/payment/entities/ticket.entity';
-import { User } from 'src/users/entities/user.entity';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
-
-@Entity()
-export class ChatConversation {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @ManyToOne(() => User)
-  user: User;
-
-  @Column()
-  status: string;
-
-  @Column({ default: 0 })
-  unreadCount: number;
-
-  @Column({ nullable: true })
-  lastMessage: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-}
+// src/chat/entities/chat-message.entity.ts
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
 
 @Entity()
 export class ChatMessage {
@@ -32,17 +7,17 @@ export class ChatMessage {
   id: number;
 
   @Column()
+  userId: string; // ID del cliente
+
+  @Column()
   message: string;
 
   @Column()
-  sender: string; // 'user' | 'agent'
+  sender: string; // 'client' o 'agent'
 
-  @ManyToOne(() => User)
-  user: User;
-
-  @ManyToOne(() => ChatConversation)
-  conversation: ChatConversation;
+  @Column({ nullable: true })
+  agentId: string; // ID del agente asignado
 
   @CreateDateColumn()
-  createdAt: Date;
+  timestamp: Date;
 }

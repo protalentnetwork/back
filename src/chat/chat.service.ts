@@ -1,115 +1,52 @@
 // src/chat/chat.service.ts
 import { Injectable } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import { env } from 'process';
-import {
-    ChatMessageResponseDto,
-    ChatConversationResponseDto
-} from 'src/ticketing/dto/zendesk.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ChatMessage } from './chat.entity';
+
 
 @Injectable()
 export class ChatService {
-    constructor(private readonly httpService: HttpService) { }
+  constructor(
+    @InjectRepository(ChatMessage)
+    private chatMessageRepository: Repository<ChatMessage>,
+  ) {}
 
-    async getConversation(conversationId: string): Promise<ChatConversationResponseDto> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+  async saveMessage(userId: string, message: string, sender: string, agentId?: string): Promise<ChatMessage> {
+    const chatMessage = this.chatMessageRepository.create({
+      userId,
+      message,
+      sender,
+      agentId,
+    });
+    return this.chatMessageRepository.save(chatMessage);
+  }
 
-        try {
-            const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats/${conversationId}`, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    },
-                })
-            );
+  async getMessagesByUserId(userId: string): Promise<ChatMessage[]> {
+    return this.chatMessageRepository.find({
+      where: { userId },
+      order: { timestamp: 'ASC' },
+    });
+  }
 
-            return response.data.chat;
-        } catch (error) {
-            throw new Error(`Error fetching conversation: ${error.message}`);
-        }
+  async assignAgent(userId: string, agentId: string): Promise<void> {
+    const existingMessages = await this.chatMessageRepository.findOne({ where: { userId } });
+    if (!existingMessages || !existingMessages.agentId) {
+      await this.chatMessageRepository.update({ userId }, { agentId });
     }
+  }
 
-    async resetUnreadCount(conversationId: string): Promise<void> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+  async getAssignedAgent(userId: string): Promise<string | null> {
+    const message = await this.chatMessageRepository.findOne({ where: { userId, agentId: null } });
+    return message ? null : (await this.chatMessageRepository.findOne({ where: { userId } })).agentId;
+  }
 
-        try {
-            await firstValueFrom(
-                this.httpService.put(
-                    `${env.ZENDESK_URL}/api/v2/chats/${conversationId}/read`,
-                    {},
-                    {
-                        headers: {
-                            'Authorization': `Basic ${auth}`,
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                )
-            );
-        } catch (error) {
-            throw new Error(`Error resetting unread count: ${error.message}`);
-        }
-    }
-
-    async getActiveChats(): Promise<ChatConversationResponseDto[]> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats/online`, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    },
-                })
-            );
-
-            return response.data.chats;
-        } catch (error) {
-            throw new Error(`Error fetching active chats: ${error.message}`);
-        }
-    }
-
-    async getChatMessages(chatId: string): Promise<ChatMessageResponseDto[]> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.get(`${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    },
-                })
-            );
-
-            return response.data.messages;
-        } catch (error) {
-            throw new Error(`Error fetching chat messages: ${error.message}`);
-        }
-    }
-
-    async sendMessage(chatId: string, message: string): Promise<ChatMessageResponseDto> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.post(
-                    `${env.ZENDESK_URL}/api/v2/chats/${chatId}/messages`,
-                    { message: { text: message } },
-                    {
-                        headers: {
-                            'Authorization': `Basic ${auth}`,
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                )
-            );
-
-            return response.data.message;
-        } catch (error) {
-            throw new Error(`Error sending message: ${error.message}`);
-        }
-    }
+  async getActiveChats(): Promise<{ userId: string; agentId: string | null }[]> {
+    const messages = await this.chatMessageRepository
+      .createQueryBuilder('chat')
+      .select('DISTINCT chat.userId', 'userId')
+      .addSelect('chat.agentId', 'agentId')
+      .getRawMany();
+    return messages;
+  }
 }
