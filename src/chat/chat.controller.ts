@@ -5,6 +5,7 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { SendMessageDto, MessageDto } from './dto/message.dto';
 import { ChatResponseDto, JoinChatDto } from './dto/chat.dto';
+import { Chat } from './entities/chat.entity';
 
 @ApiTags('Chat')
 @Controller('chat')
@@ -61,6 +62,41 @@ export class ChatController {
       message: 'Mensaje enviado con éxito', 
       data: savedMessage 
     };
+  }
+
+  @Post('send-agent-message')
+  async sendAgentMessage(
+    @Body() data: { userId: string; message: string; agentId: string },
+  ): Promise<{ message: string; data: Chat }> {
+    console.log(`Mensaje recibido vía HTTP desde agente ${data.agentId} para ${data.userId}: ${data.message}`);
+    const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'agent', data.agentId);
+
+    // Emite al cliente específico
+    const clientSocketId = this.chatGateway['activeChats'].get(data.userId);
+    if (clientSocketId) {
+      this.chatGateway.server.to(clientSocketId).emit('message', {
+        sender: 'agent',
+        message: data.message,
+        timestamp: savedMessage.timestamp,
+      });
+    }
+
+    // Emite al dashboard del agente
+    const agentSocketId = this.chatGateway['agentSockets'].get(data.agentId);
+    if (agentSocketId) {
+      this.chatGateway.server.to(agentSocketId).emit('newMessage', {
+        userId: data.userId,
+        message: data.message,
+        sender: 'agent',
+        timestamp: savedMessage.timestamp,
+      });
+    }
+
+    // Actualiza los chats activos
+    const activeChats = await this.chatService.getActiveChats();
+    this.chatGateway.server.emit('activeChats', activeChats);
+
+    return { message: 'Mensaje del agente enviado con éxito', data: savedMessage };
   }
 
   @Get('chats')
