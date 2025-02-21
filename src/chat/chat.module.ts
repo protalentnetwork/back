@@ -10,4 +10,4 @@ import { ChatMessage } from './chat.entity';
   imports: [TypeOrmModule.forFeature([ChatMessage])],
   providers: [ChatGateway, ChatService],
 })
-export class ChatModule {}
+export class ChatModule { }

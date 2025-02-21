@@ -57,6 +57,7 @@ export class ChatGateway {
 
   @SubscribeMessage('assignAgent')
   async handleAssignAgent(@MessageBody() data: { userId: string; agentId: string }) {
+    console.log(`Asignando ${data.userId} a ${data.agentId}`);
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
     if (!assignedAgent) {
       await this.chatService.assignAgent(data.userId, data.agentId);
@@ -75,6 +76,7 @@ export class ChatGateway {
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
     if (assignedAgent === data.agentId) {
       const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'agent', data.agentId);
+      console.log(`Mensaje guardado de agente ${data.agentId}: ${data.message}`);
 
       const clientSocketId = this.activeChats.get(data.userId);
       if (clientSocketId) {
@@ -99,6 +101,7 @@ export class ChatGateway {
 
   @SubscribeMessage('clientMessage')
   async handleClientMessage(@MessageBody() data: { userId: string; message: string }) {
+    console.log(`Mensaje recibido de cliente ${data.userId}: ${data.message}`);
     const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'client');
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
 
