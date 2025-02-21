@@ -128,4 +128,39 @@ export class ZendeskController {
     async createOfflineMessage(@Body() messageDto: ChatMessageDto) {
         return this.zendeskService.createOfflineMessage(messageDto);
     }
+
+    @Get('chat/conversations')
+    @ApiOperation({ summary: 'Get all chat conversations' })
+    @ApiResponse({ type: [ChatConversationResponseDto] })
+    async getChatConversations() {
+        try {
+            return await this.zendeskService.getChatConversations();
+        } catch (error) {
+            console.error("Error en getChatConversations:", error);
+            throw new Error('Failed to fetch chat conversations');
+        }
+    }
+
+    @Post('chat/start-session')
+    @ApiOperation({ summary: 'Start agent chat session' })
+    async startAgentSession() {
+        return this.zendeskService.startAgentSession();
+    }
+
+    @Get('start-chat')
+    async startChatSubscription() {
+        await this.zendeskService.startChatSubscription();
+        return { message: 'Chat subscription started' };
+    }
+
+    @Post('send-message')
+    async sendMessage(@Body() body: { chatId: string; message: string }) {
+        await this.zendeskService.sendMessageViaWebSocket(body.chatId, body.message);
+        return { message: 'Message sent' };
+    }
+
+    @Get('chats')
+    getActiveChats() {
+        return this.zendeskService.getActiveChatsViaGraphQL();
+    }
 }

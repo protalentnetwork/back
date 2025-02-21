@@ -5,11 +5,21 @@ import { env } from 'process';
 import { AxiosResponse } from 'axios';
 import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatConversationResponseDto, ChatMessageDto } from './dto/zendesk.dto';
 import { Ticket, TicketWithoutUser, User, Comment } from './zendesk.types';
+import WebSocket from 'ws';
 
 @Injectable()
 export class ZendeskService {
     private readonly logger = new Logger(ZendeskService.name);
     constructor(private readonly httpService: HttpService) { }
+    private ws: WebSocket | null = null; // Propiedad para almacenar el WebSocket
+    private activeChats: Map<string, any> = new Map();
+
+    onModuleDestroy() {
+        if (this.ws) {
+            this.ws.close();
+            this.logger.log('WebSocket connection closed');
+        }
+    }
 
     private getOAuthHeader(): string {
         const token = process.env.ZENDESK_CHAT_TOKEN;
@@ -580,15 +590,44 @@ export class ZendeskService {
         }
     }
 
-    async sendMessage(chatId: string, message: string): Promise<ChatMessageResponseDto> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+    async sendMessageViaWebSocket(chatId: string, message: string): Promise<void> {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            throw new Error('WebSocket connection is not open. Call startChatSubscription first.');
+        }
 
+        const sendMessageQuery = {
+            payload: {
+                query: `mutation {
+                    sendMessage(channel_id: "${chatId}", msg: "${message}") {
+                        success
+                    }
+                }`,
+            },
+            type: 'request',
+            id: 'SEND_MESSAGE_' + Date.now(), // ID único basado en timestamp
+        };
+
+        this.ws.send(JSON.stringify(sendMessageQuery));
+        this.logger.log(`Message sent to chat ${chatId}: ${message}`);
+    }
+
+    async getChatConversations(): Promise<ChatConversationResponseDto[]> {
+        const baseUrl = env.ZENDESK_URL;
         try {
-            // Según la documentación, no hay un endpoint directo para enviar mensajes
-            // Podríamos necesitar usar el Real Time Chat API para esto
-            throw new Error('Sending messages through REST API is not supported. Use Real Time Chat API instead.');
+            const response = await firstValueFrom(
+                this.httpService.get(`${baseUrl}/api/v2/chat/chats`, {
+                    headers: {
+                        'Authorization': this.getOAuthHeader(),
+                        'Content-Type': 'application/json',
+                    }
+                })
+            );
+
+            console.log('Conversations Response:', response.data);
+            return response.data.conversations || [];
         } catch (error) {
-            throw new Error(`Error sending message: ${error.message}`);
+            this.logger.error('Error fetching conversations:', error);
+            throw error;
         }
     }
 
@@ -600,7 +639,7 @@ export class ZendeskService {
             throw new Error('ZENDESK_URL is not defined');
         }
 
-        const chatUrl = `${baseUrl}/api/v2/chat/chats`; // Corregido de /api/v2/chats a /api/v2/chat/chats
+        const chatUrl = `${baseUrl}/api/v2/chat/chats`;
         this.logger.log('Fetching chats from:', chatUrl);
 
         try {
@@ -724,4 +763,142 @@ export class ZendeskService {
         }
     }
 
+    // Nuevo método en ZendeskService
+    async startAgentSession(): Promise<any> {
+        try {
+            const mutation = `mutation {
+            startAgentSession(access_token: "${process.env.ZENDESK_CHAT_TOKEN}") {
+                websocket_url
+                session_id
+                client_id
+            }
+        }`;
+
+            const response = await firstValueFrom(
+                this.httpService.post('https://chat-api.zopim.com/graphql/request', {
+                    query: mutation
+                })
+            );
+
+            if (response.data.data?.startAgentSession) {
+                // Conectar al WebSocket y actualizar el estado del agente a ONLINE
+                await this.connectToWebSocket(response.data.data.startAgentSession);
+            }
+
+            return response.data;
+        } catch (error) {
+            this.logger.error('Error starting agent session:', error);
+            throw new Error('Failed to start agent session');
+        }
+    }
+
+    private async connectToWebSocket(sessionData: any) {
+        try {
+            const updateAgentStatusQuery = {
+                payload: {
+                    query: `mutation {
+                    updateAgentStatus(status: ONLINE) {
+                        node {
+                            id
+                        }
+                    }
+                }`
+                },
+                type: 'request',
+                id: 'UPDATE_AGENT_STATUS'
+            };
+
+            // Aquí implementarías la conexión WebSocket
+            // Usando la URL: sessionData.websocket_url
+
+            // Por ahora, hacemos una petición HTTP simple para actualizar el estado
+            const response = await firstValueFrom(
+                this.httpService.post('https://chat-api.zopim.com/graphql/request',
+                    updateAgentStatusQuery,
+                    {
+                        headers: {
+                            'Authorization': this.getOAuthHeader()
+                        }
+                    }
+                )
+            );
+
+            return response.data;
+        } catch (error) {
+            this.logger.error('Error connecting to WebSocket:', error);
+            throw error;
+        }
+    }
+
+    async getActiveChatsViaGraphQL(): Promise<any> {
+        const mutation = `query {
+            chats {
+                edges {
+                    node {
+                        id
+                        visitor { name email }
+                        status
+                        timestamp
+                    }
+                }
+            }
+        }`;
+
+        const response = await firstValueFrom(
+            this.httpService.post('https://chat-api.zopim.com/graphql/request',
+                { query: mutation },
+                { headers: { 'Authorization': this.getOAuthHeader() } }
+            )
+        );
+        return response.data.data.chats.edges.map(edge => edge.node);
+    }
+
+    async startChatSubscription(): Promise<void> {
+        const session = await this.startAgentSession();
+        const wsUrl = session.data.startAgentSession.websocket_url;
+        this.ws = new WebSocket(wsUrl);
+
+        this.ws.on('open', () => {
+            this.logger.log('WebSocket connection opened');
+            const subscriptionQuery = {
+                payload: {
+                    query: `subscription {
+                        chat {
+                            node {
+                                id
+                                visitor { name email }
+                                status
+                                timestamp
+                            }
+                        }
+                    }`,
+                },
+                type: 'request',
+                id: 'CHAT_SUBSCRIPTION',
+            };
+            this.ws.send(JSON.stringify(subscriptionQuery));
+        });
+
+        this.ws.on('message', async (data) => {
+            const parsed = JSON.parse(data);
+            if (parsed.sig === 'DATA' && parsed.payload.data) {
+                const chat = parsed.payload.data.chat.node;
+                this.activeChats.set(chat.id, chat);
+                this.logger.log('Nuevo chat:', chat);
+
+                // Responder automáticamente (opcional)
+                await this.sendMessageViaWebSocket(chat.id, '¡Hola! ¿En qué puedo ayudarte?');
+            }
+        });
+
+        this.ws.on('error', (error) => {
+            this.logger.error('WebSocket error:', error);
+        });
+
+        this.ws.on('close', () => {
+            this.logger.log('WebSocket connection closed');
+            this.ws = null;
+            this.activeChats.clear();
+        });
+    }
 }
