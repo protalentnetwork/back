@@ -107,6 +107,13 @@ export class ChatGateway {
     }
   }
 
+  @SubscribeMessage('selectChat')
+  async handleSelectChat(@ConnectedSocket() client: Socket, @MessageBody() data: { userId: string; agentId: string }) {
+    console.log(`Agente ${data.agentId} seleccionó el chat ${data.userId}`);
+    const messages = await this.chatService.getMessagesByUserId(data.userId);
+    client.emit('chatMessages', { userId: data.userId, messages }); // Asegura que sea chatMessages
+  }
+
   @SubscribeMessage('clientMessage')
   async handleClientMessage(@MessageBody() data: MessageDto) {
     console.log(`Mensaje recibido de cliente ${data.userId}: ${data.message}`);
