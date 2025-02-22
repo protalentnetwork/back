@@ -9,6 +9,8 @@ import { ZendeskController } from './ticketing/zendesk.controller';
 import { ZendeskModule } from './ticketing/zendesk.module';
 import { ChatModule } from './chat/chat.module';
 import { Chat } from './chat/entities/chat.entity';
+import { AccountModule } from './account/account.module';
+import { Account } from './account/entities/account.entity'; // Importa la entidad Account
 
 @Module({
   imports: [
@@ -25,12 +27,13 @@ import { Chat } from './chat/entities/chat.entity';
       extraProviders: [TypeOrmConfigService],
       useFactory: async (configService: TypeOrmConfigService) => ({
         ...configService.createTypeOrmOptions(),
-        entities: [Chat],
+        entities: [Chat, Account], // Agrega Account a las entidades
       }),
     }),
     UserModule,
     PaymentModule,
     ChatModule,
+    AccountModule,
   ],
   controllers: [ZendeskController],
 })
