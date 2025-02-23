@@ -11,6 +11,7 @@ import { ChatModule } from './chat/chat.module';
 import { Chat } from './chat/entities/chat.entity';
 import { AccountModule } from './account/account.module';
 import { Account } from './account/entities/account.entity'; // Importa la entidad Account
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -23,17 +24,12 @@ import { Account } from './account/entities/account.entity'; // Importa la entid
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useClass: TypeOrmConfigService,
-      inject: [TypeOrmConfigService],
-      extraProviders: [TypeOrmConfigService],
-      useFactory: async (configService: TypeOrmConfigService) => ({
-        ...configService.createTypeOrmOptions(),
-        entities: [Chat, Account], // Agrega Account a las entidades
-      }),
     }),
     UserModule,
     PaymentModule,
     ChatModule,
     AccountModule,
+    AuthModule,
   ],
   controllers: [ZendeskController],
 })

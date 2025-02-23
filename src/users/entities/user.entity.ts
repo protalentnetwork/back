@@ -12,6 +12,9 @@ export class User {
     @Column({ unique: true })
     email: string;
 
+    @Column({ name: 'password', nullable: false })
+    password: string;
+
     @Column({ name: 'role', nullable: false })
     role: string;
 
@@ -24,6 +27,7 @@ export class User {
     @CreateDateColumn({
         type: 'timestamp with time zone',
         default: () => 'CURRENT_TIMESTAMP(6)',
+        name: 'created_at'
     })
     createdAt: Date;
 

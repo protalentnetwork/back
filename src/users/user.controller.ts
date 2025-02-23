@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Post, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param, Patch, UseInterceptors, ClassSerializerInterceptor } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { CreateUserDto, UserResponseDto } from './dto/user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 import { UserService } from './user.service';
 
 @ApiTags('Users')
 @Controller('users')
+@UseInterceptors(ClassSerializerInterceptor)
 export class UserController {
   constructor(
     private readonly userService: UserService
@@ -22,7 +24,8 @@ export class UserController {
     description: 'Bad request - Invalid user data'
   })
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    return this.userService.create(createUserDto);
+    const user = await this.userService.create(createUserDto);
+    return new UserResponseDto(user);
   }
 
   @Get()
@@ -33,7 +36,8 @@ export class UserController {
     type: [UserResponseDto]
   })
   async findAll(): Promise<UserResponseDto[]> {
-    return this.userService.findAll();
+    const users = await this.userService.findAll();
+    return users.map(user => new UserResponseDto(user));
   }
 
   @Patch(':id/login')
@@ -44,6 +48,7 @@ export class UserController {
     type: UserResponseDto
   })
   async updateLastLoginDate(@Param('id') id: number): Promise<UserResponseDto> {
-    return this.userService.updateLastLoginDate(id);
+    const user = await this.userService.updateLastLoginDate(id);
+    return new UserResponseDto(user);
   }
 }
