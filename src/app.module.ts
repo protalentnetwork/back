@@ -12,6 +12,7 @@ import { Chat } from './chat/entities/chat.entity';
 import { AccountModule } from './account/account.module';
 import { Account } from './account/entities/account.entity'; // Importa la entidad Account
 import { AuthModule } from './auth/auth.module';
+import { ReportModule } from './reports/report.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AuthModule } from './auth/auth.module';
     ChatModule,
     AccountModule,
     AuthModule,
+    ReportModule
   ],
   controllers: [ZendeskController],
 })
