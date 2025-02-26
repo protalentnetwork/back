@@ -1,17 +1,14 @@
-import { Controller, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { IpnService } from './transactions.service';
+import { PaymentData } from './transactions.service';
 
-@Controller('ipn')
-export class IpnController {
+@Controller('transactions')
+export class TransactionsController {
   constructor(private readonly ipnService: IpnService) {}
 
-  @Post()
-  handleIpn(
-    @Query('topic') topic: string,
-    @Query('id') id: string,
-    @Body() data: any,
-  ) {
-    console.log('Notificación IPN recibida - Topic:', topic, 'ID:', id, 'Data:', data);
-    return this.ipnService.handleNotification({ topic, id, data });
+  @Get()
+  getTransactions(): PaymentData[] {
+    console.log('Transacciones devueltas por el controlador:', this.ipnService.getTransactions());
+    return this.ipnService.getTransactions();
   }
 }
