@@ -1,7 +1,9 @@
-import { Controller, Post, Body, Get, Param, Put, Query, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Put, Query } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatMessageDto, ChatConversationResponseDto } from './dto/zendesk.dto';
+import { ApiKeyAuth } from '../auth/apikeys/decorators/api-key-auth.decorator';
+import { API_PERMISSIONS } from '../auth/apikeys/permissions.constants';
 
 @ApiTags('Zendesk')
 @Controller('zendesk')
@@ -9,6 +11,7 @@ export class ZendeskController {
     constructor(private readonly zendeskService: ZendeskService) { }
 
     @Post('create-ticket')
+    @ApiKeyAuth(API_PERMISSIONS.ZENDESK_CREATE_TICKET)
     @ApiOperation({ summary: 'Create a new ticket' })
     @ApiResponse({ type: TicketResponseDto })
     async createTicket(@Body() createTicketDto: CreateTicketDto) {
