@@ -6,6 +6,7 @@ import { Transaction } from 'src/payment/entities/transaction.entity';
 import { Log } from 'src/payment/entities/log.entity';
 import { Chat } from 'src/chat/entities/chat.entity';
 import { Account } from 'src/payment/entities/account.entity';
+import { ApiKey } from 'src/auth/apikeys/entities/apikey.entity';
 
 @Injectable()
 export class TypeOrmConfigService implements TypeOrmOptionsFactory {
@@ -19,7 +20,7 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
       username: this.configService.get<string>('DB_USERNAME'),
       password: this.configService.get<string>('DB_PASSWORD'),
       database: this.configService.get<string>('DB_DATABASE'),
-      entities: [User, Transaction, Log, Chat, Account],
+      entities: [User, Transaction, Log, Chat, Account, ApiKey],
       migrations: ['dist/migrations/*.js'],
       migrationsRun: true,
       migrationsTableName: 'migrations',
