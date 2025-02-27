@@ -3,10 +3,10 @@ import { IpnController } from './ipn.controller';
 import { IpnService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
 import { DepositController } from './deposit/deposit.controller';
-import { WithdrawController } from './withdraw/withdrawler.controller';
+import { RussiansWithdrawController } from './withdraw/withdrawler.controller';
 
 @Module({
-  controllers: [IpnController, DepositController, WithdrawController, TransactionsController],
+  controllers: [IpnController, DepositController, RussiansWithdrawController, TransactionsController],
   providers: [IpnService],
 })
-export class IpnModule {}
+export class IpnModule { }
