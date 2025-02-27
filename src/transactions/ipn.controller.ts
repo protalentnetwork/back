@@ -1,9 +1,9 @@
-import { Controller, Post, Body, Query } from '@nestjs/common';
+import { Controller, Post, Query, Body } from '@nestjs/common';
 import { IpnService } from './transactions.service';
 
 @Controller('ipn')
 export class IpnController {
-  constructor(private readonly ipnService: IpnService) {}
+  constructor(private readonly ipnService: IpnService) { }
 
   @Post()
   handleIpn(
