@@ -74,7 +74,7 @@ export class ReportService {
 
     async getTicketsByAgent() {
         try {
-            const allTickets = await this.zendeskService.getAllTicketsWithUser() as TicketResponse[];
+            const allTickets = await this.zendeskService.getAllTickets() as TicketResponse[];
             const agentTickets: Record<string, number> = {};
 
             allTickets.forEach(ticket => {
