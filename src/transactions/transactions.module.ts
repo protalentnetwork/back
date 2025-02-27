@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { IpnController } from './ipn.controller'; // Importar desde ipn.controller.ts
+import { IpnController } from './ipn.controller';
 import { IpnService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
-import { RussiansDepositController } from './deposit/russians-deposit.controller';
-import { RussiansWithdrawController } from './withdraw/russianswithdraw.controller';
+import { DepositController } from './deposit/deposit.controller';
+import { WithdrawController } from './withdraw/withdrawler.controller';
 
 @Module({
-    controllers: [IpnController, RussiansDepositController, RussiansWithdrawController, TransactionsController],
-    providers: [IpnService],
+  controllers: [IpnController, DepositController, WithdrawController, TransactionsController],
+  providers: [IpnService],
 })
-export class IpnModule { }
+export class IpnModule {}

@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { IpnNotification, DepositData, WithdrawData, Transaction, PaymentData } from './transaction.types';
+// Importamos el tipo RussiansDepositData
+import { RussiansDepositData } from './deposit/russians-deposit.types';
+
+// Re-exportamos los tipos necesarios
+export { Transaction } from './transaction.types';
 
 @Injectable()
 export class IpnService {
@@ -92,22 +97,30 @@ export class IpnService {
     };
   }
 
-  // El resto del código se mantiene igual
   getTransactions() {
     console.log('Transacciones disponibles antes de devolver:', this.transactions);
     return this.transactions;
   }
 
-  async validateWithMercadoPago(depositData: DepositData) {
+  // Modificamos validateWithMercadoPago para aceptar RussiansDepositData
+  async validateWithMercadoPago(depositData: RussiansDepositData) {
     console.log('Validando depósito:', depositData);
+
+    // Mapear RussiansDepositData a DepositData si es necesario
+    const depositToValidate: DepositData = {
+      cbu: depositData.cbu,
+      amount: depositData.amount,
+      idTransferencia: depositData.idTransferencia,
+      dateCreated: depositData.dateCreated
+    };
 
     // Buscar coincidencia en las transacciones almacenadas (depósitos de MP)
     const matchingTransaction = this.transactions.find(transaction => {
       return (
         transaction.type === 'deposit' &&
-        transaction.amount === depositData.amount && // Coincidencia de monto
-        this.matchCbuWithMp(transaction, depositData.cbu) && // Coincidencia de CBU con receiver_id o bank_transfer_id
-        this.isDateCloseEnough(transaction.date_created, depositData.dateCreated) // Coincidencia aproximada de fecha
+        transaction.amount === depositToValidate.amount && // Coincidencia de monto
+        this.matchCbuWithMp(transaction, depositToValidate.cbu) && // Coincidencia de CBU con receiver_id o bank_transfer_id
+        this.isDateCloseEnough(transaction.date_created, depositToValidate.dateCreated) // Coincidencia aproximada de fecha
       );
     });
 
@@ -133,12 +146,14 @@ export class IpnService {
         },
       });
 
+      console.log('Respuesta de búsqueda en API de Mercado Pago:', JSON.stringify(response.data, null, 2));
+
       const payments = response.data.results;
       const matchedPayment = payments.find((payment: PaymentData) => {
         return (
-          payment.amount === depositData.amount &&
-          this.matchCbuWithMp({ payment_method_id: payment.payment_method_id, receiver_id: payment.receiver_id } as unknown as Transaction, depositData.cbu) &&
-          this.isDateCloseEnough(payment.date_created, depositData.dateCreated)
+          payment.amount === depositToValidate.amount &&
+          this.matchCbuWithMp({ payment_method_id: payment.payment_method_id, receiver_id: payment.receiver_id } as unknown as Transaction, depositToValidate.cbu) &&
+          this.isDateCloseEnough(payment.date_created, depositToValidate.dateCreated)
         );
       });
 
@@ -163,26 +178,26 @@ export class IpnService {
 
       console.log('No se encontró coincidencia con Mercado Pago');
       const newTransaction: Transaction = {
-        id: depositData.idTransferencia,
+        id: depositToValidate.idTransferencia,
         type: 'deposit',
-        amount: depositData.amount,
+        amount: depositToValidate.amount,
         status: 'Pending',
-        date_created: depositData.dateCreated || new Date().toISOString(),
+        date_created: depositToValidate.dateCreated || new Date().toISOString(),
         description: 'Depósito pendiente de validación',
-        cbu: depositData.cbu,
+        cbu: depositToValidate.cbu,
       };
       this.transactions.push(newTransaction);
       return { status: 'error', message: 'No se pudo validar el depósito con Mercado Pago, pendiente de revisión', transaction: newTransaction };
     } catch (error) {
       console.error('Error al consultar la API de MP:', error);
       const newTransaction: Transaction = {
-        id: depositData.idTransferencia,
+        id: depositToValidate.idTransferencia,
         type: 'deposit',
-        amount: depositData.amount,
+        amount: depositToValidate.amount,
         status: 'Pending',
-        date_created: depositData.dateCreated || new Date().toISOString(),
+        date_created: depositToValidate.dateCreated || new Date().toISOString(),
         description: 'Depósito con error en validación',
-        cbu: depositData.cbu,
+        cbu: depositToValidate.cbu,
       };
       this.transactions.push(newTransaction);
       return { status: 'error', message: 'Error al validar el depósito con Mercado Pago', transaction: newTransaction };
