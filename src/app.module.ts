@@ -8,9 +8,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ZendeskController } from './ticketing/zendesk.controller';
 import { ZendeskModule } from './ticketing/zendesk.module';
 import { ChatModule } from './chat/chat.module';
-import { Chat } from './chat/entities/chat.entity';
 import { AccountModule } from './account/account.module';
-import { Account } from './account/entities/account.entity'; // Importa la entidad Account
 import { AuthModule } from './auth/auth.module';
 import { ReportModule } from './reports/report.module';
 import { IpnModule } from './transactions/transactions.module';

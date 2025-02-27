@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('api_keys')
+@Entity({ name: 'api_keys' })
 export class ApiKey {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -10,7 +10,7 @@ export class ApiKey {
 
   @Column({ length: 64 })
   keyHash: string;
-  
+
   @Column({ default: true })
   isActive: boolean;
 
