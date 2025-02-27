@@ -34,6 +34,13 @@ export class ChangeTicketStatusDto {
   status: string;
 }
 
+export class CreateAgentDto {
+  name: string;
+  email: string;
+  role?: string = 'agent'; // Por defecto será agente
+  default_group_id?: number; // Opcional, ID del grupo predeterminado
+}
+
 export class AssignTicketDto {
   @ApiProperty({ description: 'ID of the agent to assign the ticket to' })
   @IsString() // Cambiado a string para consistencia con Zendesk IDs

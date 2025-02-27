@@ -1,7 +1,7 @@
-import { Controller, Post, Body, Get, Param, Put, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Put, Query, Delete } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
-import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatMessageDto, ChatConversationResponseDto } from './dto/zendesk.dto';
+import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatMessageDto, ChatConversationResponseDto, CreateAgentDto } from './dto/zendesk.dto';
 import { ApiKeyAuth } from '../auth/apikeys/decorators/api-key-auth.decorator';
 import { API_PERMISSIONS } from '../auth/apikeys/permissions.constants';
 
@@ -23,6 +23,23 @@ export class ZendeskController {
     @ApiResponse({ type: [UserResponseDto] })
     async getAllAgents() {
         return this.zendeskService.getAllAgents();
+    }
+
+    @Post('new-agents')
+    //@ApiKeyAuth(API_PERMISSIONS.ZENDESK_CREATE_AGENT) 
+    @ApiOperation({ summary: 'Create a new Zendesk agent' })
+    @ApiBody({ type: CreateAgentDto })
+    @ApiResponse({ type: UserResponseDto })
+    async createAgent(@Body() createAgentDto: CreateAgentDto) {
+        return this.zendeskService.createAgent(createAgentDto);
+    }
+
+    @Delete('agents/:userId')
+    //@ApiKeyAuth(API_PERMISSIONS.ZENDESK_DELETE_AGENT) // Nuevo permiso
+    @ApiOperation({ summary: 'Delete a Zendesk agent by ID' })
+    @ApiResponse({ status: 200, description: 'Agent deleted successfully', type: Object })
+    async deleteAgent(@Param('userId') userId: string) {
+        return this.zendeskService.deleteAgent(userId);
     }
 
     @Get('users')

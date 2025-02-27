@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { env } from 'process';
 import { AxiosResponse } from 'axios';
-import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatConversationResponseDto, ChatMessageDto } from './dto/zendesk.dto';
+import { CreateTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatConversationResponseDto, ChatMessageDto, CreateAgentDto } from './dto/zendesk.dto';
 import { Ticket, TicketWithoutUser, User, Comment } from './zendesk.types';
 import WebSocket from 'ws';
 
@@ -199,6 +199,63 @@ export class ZendeskService {
             throw new Error(`Error fetching users: ${error.message}`);
         }
     }
+
+    async createAgent(createAgentDto: CreateAgentDto): Promise<UserResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        const agentData = {
+            user: {
+                name: createAgentDto.name,
+                email: createAgentDto.email,
+                role: createAgentDto.role || 'agent', // Por defecto 'agent'
+                default_group_id: createAgentDto.default_group_id, // Opcional
+            },
+        };
+
+        try {
+            const response: AxiosResponse<{ user: User }> = await firstValueFrom(
+                this.httpService.post(env.ZENDESK_URL_USERS, agentData, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            const user = response.data.user;
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                default_group_id: user.default_group_id,
+            };
+        } catch (error) {
+            console.error('Error creating agent:', error.response?.data || error.message);
+            throw new Error(`Error creating agent: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
+    async deleteAgent(userId: string): Promise<{ message: string }> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            await firstValueFrom(
+                this.httpService.delete(`${env.ZENDESK_URL_USERS}/${userId}`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            return { message: `Agent with ID ${userId} deleted successfully` };
+        } catch (error) {
+            console.error('Error deleting agent:', error.response?.data || error.message);
+            throw new Error(`Error deleting agent: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
 
     async createUserIfNotExists(email: string): Promise<number | null> {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
