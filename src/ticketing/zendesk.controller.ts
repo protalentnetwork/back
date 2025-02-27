@@ -87,6 +87,15 @@ export class ZendeskController {
         return this.zendeskService.changeTicketStatus(ticketId, statusDto.status);
     }
 
+    @Post('tickets/:ticketId/comments')
+    async addTicketComment(
+        @Param('ticketId') ticketId: string,
+        @Body('comment') comment: string,
+        @Body('authorId') authorId: string,
+    ) {
+        return this.zendeskService.addTicketComment(ticketId, comment, authorId);
+    }
+
     @Put('tickets/:ticketId/assign')
     @ApiOperation({ summary: 'Assign a ticket to an agent' })
     @ApiResponse({ type: TicketResponseDto })

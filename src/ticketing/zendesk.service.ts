@@ -452,6 +452,76 @@ export class ZendeskService {
         }
     }
 
+    async addTicketComment(ticketId: string, comment: string, authorId: string): Promise<TicketResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        // Asegurarse de que authorId sea un número válido
+        const authorIdNum = parseInt(authorId);
+        if (isNaN(authorIdNum)) {
+            throw new Error(`Invalid author ID: ${authorId}`);
+        }
+
+        this.logger.log(`Adding comment to ticket ${ticketId} by agent ${authorId}: ${comment.substring(0, 50)}...`);
+
+        const commentData = {
+            ticket: {
+                comment: {
+                    body: comment,
+                    public: true,
+                    author_id: authorIdNum, // Asegurar que es un número
+                },
+            },
+        };
+
+        try {
+            // Registrar los datos que se están enviando a la API
+            this.logger.log(`Sending comment data to Zendesk: ${JSON.stringify(commentData)}`);
+
+            const response: AxiosResponse<{ ticket: Ticket }> = await firstValueFrom(
+                this.httpService.put(
+                    `${env.ZENDESK_URL_TICKETS}/${ticketId}`,
+                    commentData,
+                    {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                )
+            );
+
+            const ticket = response.data.ticket;
+            this.logger.log(`Comment successfully added to ticket ${ticketId} by agent ${authorId}`);
+
+            // Esperar brevemente para asegurar que el comentario se haya procesado
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            return {
+                id: ticket.id,
+                subject: ticket.subject,
+                description: ticket.description,
+                status: ticket.status,
+                requester_id: ticket.requester_id,
+                assignee_id: ticket.assignee_id,
+                user: ticket.user,
+                group_id: ticket.group_id,
+            };
+        } catch (error) {
+            this.logger.error('Error adding comment to ticket:', error.response?.data || error.message);
+
+            // Registrar detalles completos del error para diagnóstico
+            if (error.response) {
+                this.logger.error('Error response data:', error.response.data);
+                this.logger.error('Error response status:', error.response.status);
+                this.logger.error('Error response headers:', error.response.headers);
+            } else if (error.request) {
+                this.logger.error('Error request:', error.request);
+            }
+
+            throw new Error(`Error adding comment to ticket: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
     async changeTicketStatus(ticketId: string, status: string): Promise<TicketResponseDto> {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
 
