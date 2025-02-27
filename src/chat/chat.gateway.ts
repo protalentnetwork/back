@@ -1,5 +1,5 @@
 // src/chat/chat.gateway.ts
-import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, ConnectedSocket } from '@nestjs/websockets';
+import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, ConnectedSocket, WsException } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JoinChatDto, JoinAgentDto, AssignAgentDto } from './dto/chat.dto';
@@ -14,6 +14,8 @@ import { MessageDto, AgentMessageDto } from './dto/message.dto';
     ],
     credentials: true,
   },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 })
 export class ChatGateway {
   @WebSocketServer()
@@ -82,29 +84,29 @@ export class ChatGateway {
   @SubscribeMessage('message')
   async handleMessage(@MessageBody() data: AgentMessageDto) {
     const assignedAgent = await this.chatService.getAssignedAgent(data.userId);
-    if (assignedAgent === data.agentId) {
-      const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'agent', data.agentId);
-      console.log(`Mensaje guardado de agente ${data.agentId}: ${data.message}`);
+    // if (assignedAgent === data.agentId) {
+    const savedMessage = await this.chatService.saveMessage(data.userId, data.message, 'agent', data.agentId);
+    console.log(`Mensaje guardado de agente ${data.agentId}: ${data.message}`);
 
-      const clientSocketId = this.activeChats.get(data.userId);
-      if (clientSocketId) {
-        this.server.to(clientSocketId).emit('message', {
-          sender: 'agent',
-          message: data.message,
-          timestamp: savedMessage.timestamp,
-        });
-      }
-
-      const agentSocketId = this.agentSockets.get(data.agentId);
-      if (agentSocketId) {
-        this.server.to(agentSocketId).emit('newMessage', {
-          userId: data.userId,
-          message: data.message,
-          sender: 'agent',
-          timestamp: savedMessage.timestamp,
-        });
-      }
+    const clientSocketId = this.activeChats.get(data.userId);
+    if (clientSocketId) {
+      this.server.to(clientSocketId).emit('message', {
+        sender: 'agent',
+        message: data.message,
+        timestamp: savedMessage.timestamp,
+      });
     }
+
+    const agentSocketId = this.agentSockets.get(data.agentId);
+    if (agentSocketId) {
+      this.server.to(agentSocketId).emit('newMessage', {
+        userId: data.userId,
+        message: data.message,
+        sender: 'agent',
+        timestamp: savedMessage.timestamp,
+      });
+    }
+    // }
   }
 
   @SubscribeMessage('selectChat')

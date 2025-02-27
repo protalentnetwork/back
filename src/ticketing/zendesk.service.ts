@@ -126,6 +126,8 @@ export class ZendeskService {
                     status: ticket.status,
                     requester_id: ticket.requester_id,
                     assignee_id: ticket.assignee_id,
+                    created_at: ticket.created_at,
+                    updated_at: ticket.updated_at,
                     user: user ? {
                         name: user.name,
                         email: user.email,
@@ -136,67 +138,6 @@ export class ZendeskService {
             });
         } catch (error) {
             throw new Error(`Error fetching tickets: ${error.message}`);
-        }
-    }
-
-    async getAllOpenTickets(): Promise<TicketWithoutUser[]> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            const response: AxiosResponse<{ tickets: TicketWithoutUser[] }> = await firstValueFrom(
-                this.httpService.get(env.ZENDESK_URL_TICKETS, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    },
-                })
-            );
-
-            return response.data.tickets.filter(ticket => ticket.status === 'open');
-        } catch (error) {
-            throw new Error(`Error fetching tickets: ${error.message}`);
-        }
-    }
-
-    async getAllTicketsWithUser(): Promise<TicketResponseDto[]> {
-        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.get(env.ZENDESK_URL_USERS, {
-                    headers: {
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/json',
-                    },
-                    params: {
-                        query: 'role:end-user'
-                    }
-                })
-            );
-
-            const users: User[] = response.data.users;
-            const tickets: TicketWithoutUser[] = await this.getAllOpenTickets();
-
-            return tickets.map(ticket => {
-                const user = users.find(user => user.id === ticket.requester_id);
-                return {
-                    id: ticket.id,
-                    subject: ticket.subject,
-                    description: ticket.description,
-                    status: ticket.status,
-                    requester_id: ticket.requester_id,
-                    assignee_id: ticket.assignee_id,
-                    created_at: ticket.created_at,
-                    updated_at: ticket.updated_at,
-                    user: user ? {
-                        name: user.name,
-                        email: user.email,
-                    } : undefined,
-                    group_id: ticket.group_id
-                };
-            });
-        } catch (error) {
-            throw new Error(`Error fetching users: ${error.message}`);
         }
     }
 

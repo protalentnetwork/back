@@ -49,18 +49,11 @@ export class ZendeskController {
         return this.zendeskService.getAllUsers();
     }
 
-    @Get('tickets/any-status-tickets')
-    @ApiOperation({ summary: 'Get all tickets with any status' })
-    @ApiResponse({ type: [TicketResponseDto] })
-    async getAllTicketsWithAnyStatus() {
-        return this.zendeskService.getAllTickets();
-    }
-
     @Get('tickets/all')
     @ApiOperation({ summary: 'Get all tickets with user information' })
     @ApiResponse({ type: [TicketResponseDto] })
     async getAllTickets() {
-        return this.zendeskService.getAllTicketsWithUser();
+        return this.zendeskService.getAllTickets();
     }
 
     @Get('tickets/:ticketId')
