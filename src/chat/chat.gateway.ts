@@ -167,6 +167,7 @@ export class ChatGateway {
         timestamp: savedMessage.timestamp,
       });
     }
+
   }
 
   @SubscribeMessage('selectConversation')
