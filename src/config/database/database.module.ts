@@ -5,6 +5,7 @@ import { User } from 'src/users/entities/user.entity';
 import { Transaction } from 'src/payment/entities/transaction.entity';
 import { Log } from 'src/payment/entities/log.entity';
 import { Chat } from 'src/chat/entities/chat.entity';
+import { Conversation } from 'src/chat/entities/conversation.entity';
 import { Account as PaymentAccount } from 'src/payment/entities/account.entity';
 import { Account as AccountEntity } from 'src/account/entities/account.entity';
 import { ApiKey } from 'src/auth/apikeys/entities/apikey.entity';
@@ -14,21 +15,16 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
   constructor(private configService: ConfigService) { }
 
   createTypeOrmOptions(): TypeOrmModuleOptions {
-    console.log('TypeORM Config Service: Configuring entities...');
-
-    // Lista completa de todas las entidades
     const entities = [
       User,
       Transaction,
       Log,
       Chat,
+      Conversation,
       PaymentAccount,
       AccountEntity,
       ApiKey,
-      // Añade cualquier otra entidad que tengas
     ];
-
-    console.log('Registering entities:', entities.map(e => e.name));
 
     return {
       type: 'postgres',
@@ -39,7 +35,7 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
       database: this.configService.get('DB_DATABASE'),
       entities: entities,
       synchronize: false,
-      logging: true,
+      logging: false,
     };
   }
 }

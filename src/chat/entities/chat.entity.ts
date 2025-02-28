@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Conversation } from './conversation.entity';
 
 @Entity()
 export class Chat {
@@ -23,4 +24,11 @@ export class Chat {
         name: 'timestamp'
     })
     timestamp: Date;
+    
+    @Column({ name: 'conversation_id', nullable: true })
+    conversationId: string;
+    
+    @ManyToOne(() => Conversation, conversation => conversation.messages, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'conversation_id' })
+    conversation: Conversation;
 } 

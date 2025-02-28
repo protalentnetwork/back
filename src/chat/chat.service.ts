@@ -12,12 +12,13 @@ export class ChatService {
     private chatRepository: Repository<Chat>,
   ) {}
 
-  async saveMessage(userId: string, message: string, sender: string, agentId?: string): Promise<Chat> {
+  async saveMessage(userId: string, message: string, sender: string, conversationId: string, agentId?: string): Promise<Chat> {
     const chat = this.chatRepository.create({
       userId,
       message,
       sender,
       agentId,
+      conversationId,
     });
     return this.chatRepository.save(chat);
   }
@@ -25,6 +26,13 @@ export class ChatService {
   async getMessagesByUserId(userId: string): Promise<Chat[]> {
     return this.chatRepository.find({
       where: { userId },
+      order: { timestamp: 'ASC' },
+    });
+  }
+
+  async getMessagesByConversationId(conversationId: string): Promise<Chat[]> {
+    return this.chatRepository.find({
+      where: { conversationId },
       order: { timestamp: 'ASC' },
     });
   }
@@ -45,7 +53,7 @@ export class ChatService {
     const messages = await this.chatRepository
       .createQueryBuilder('chat')
       .distinctOn(['chat.userId'])
-      .select(['chat.userId', 'chat.agentId'])
+      .select(['chat.userId', 'chat.agentId', 'chat.conversationId'])
       .orderBy('chat.userId')
       .getRawMany();
     return messages;

@@ -25,6 +25,12 @@ export class MessageDto {
     example: '2024-02-21T10:00:00Z'
   })
   timestamp?: Date;
+  
+  @ApiProperty({
+    description: 'ID de la conversación a la que pertenece el mensaje',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  conversationId: string;
 }
 
 export class SendMessageDto {
@@ -39,6 +45,12 @@ export class SendMessageDto {
     example: 'Necesito ayuda con mi cuenta'
   })
   message: string;
+  
+  @ApiProperty({
+    description: 'ID de la conversación a la que pertenece el mensaje',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  conversationId: string;
 }
 
 export class AgentMessageDto extends SendMessageDto {

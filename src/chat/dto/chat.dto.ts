@@ -7,6 +7,13 @@ export class JoinChatDto {
     example: 'user123'
   })
   userId: string;
+
+  @ApiProperty({
+    description: 'Título opcional para la conversación',
+    example: 'Consulta sobre facturación',
+    required: false
+  })
+  title?: string;
 }
 
 export class JoinAgentDto {
@@ -18,6 +25,12 @@ export class JoinAgentDto {
 }
 
 export class AssignAgentDto {
+  @ApiProperty({
+    description: 'ID de la conversación a la que se asignará el agente',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  conversationId: string;
+
   @ApiProperty({
     description: 'ID del usuario al que se asignará el agente',
     example: 'user123'
