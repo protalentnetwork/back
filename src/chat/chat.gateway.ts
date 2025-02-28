@@ -10,6 +10,7 @@ import { MessageDto, AgentMessageDto } from './dto/message.dto';
   cors: {
     origin: [
       'https://backoffice-casino-front-production.up.railway.app',
+      'https://chat-casi-production.up.railway.app',
       'http://localhost:3000',
       'http://localhost:8000',
     ],
@@ -58,7 +59,7 @@ export class ChatGateway {
 
     // Notificar a los agentes sobre las conversaciones activas
     const allActiveConversations = await this.conversationService.getActiveConversations();
-    this.server.emit('activeConversations', allActiveConversations);
+    this.server.emit('activeChats', allActiveConversations);
   }
 
   @SubscribeMessage('joinAgent')
@@ -71,20 +72,36 @@ export class ChatGateway {
 
     // Enviar conversaciones activas al agente
     const activeConversations = await this.conversationService.getActiveConversations();
-    this.server.to(client.id).emit('activeConversations', activeConversations);
+    this.server.to(client.id).emit('activeChats', activeConversations);
   }
 
   @SubscribeMessage('assignAgent')
-  async handleAssignAgent(@MessageBody() data: AssignAgentDto) {
+  async handleAssignAgent(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: AssignAgentDto
+  ) {
     console.log(`Asignando conversación ${data.conversationId} a ${data.agentId}`);
 
-    // Asignar agente a la conversación
-    const conversation = await this.conversationService.getConversationById(data.conversationId);
-    if (!conversation) {
-      throw new WsException(`Conversación con ID ${data.conversationId} no encontrada`);
-    }
+    try {
+      // Asignar agente a la conversación
+      const conversation = await this.conversationService.getConversationById(data.conversationId);
+      if (!conversation) {
+        // Responder con error si la conversación no existe
+        return {
+          success: false,
+          error: `Conversación con ID ${data.conversationId} no encontrada`
+        };
+      }
 
-    if (!conversation.agentId) {
+      // Si ya hay un agente asignado, rechazar la asignación
+      if (conversation.agentId) {
+        return {
+          success: false,
+          error: `La conversación ya tiene asignado al agente ${conversation.agentId}`
+        };
+      }
+
+      // Asignar agente a la conversación
       await this.conversationService.assignAgentToConversation(data.conversationId, data.agentId);
 
       // Notificar al agente sobre la asignación
@@ -98,9 +115,24 @@ export class ChatGateway {
         });
       }
 
+      // Notificar a todos los agentes que el agente fue asignado
+      this.server.emit('agentAssigned', {
+        userId: data.userId,
+        agentId: data.agentId,
+        conversationId: data.conversationId,
+        success: true
+      });
+
       // Actualizar lista de conversaciones activas
       const activeConversations = await this.conversationService.getActiveConversations();
-      this.server.emit('activeConversations', activeConversations);
+      this.server.emit('activeChats', activeConversations);
+
+      // Enviar respuesta de éxito
+      return { success: true };
+    } catch (error) {
+      console.error('Error al asignar agente:', error.message);
+      // Enviar respuesta de error
+      return { success: false, error: error.message };
     }
   }
 
@@ -168,6 +200,9 @@ export class ChatGateway {
       });
     }
 
+    // Actualizar lista de conversaciones activas
+    const activeConversations = await this.conversationService.getActiveConversations();
+    this.server.emit('activeChats', activeConversations);
   }
 
   @SubscribeMessage('selectConversation')
@@ -216,6 +251,7 @@ export class ChatGateway {
           message: data.message,
           sender: 'client',
           timestamp: savedMessage.timestamp,
+          id: savedMessage.id
         });
       }
     } else {
@@ -226,12 +262,13 @@ export class ChatGateway {
         message: data.message,
         sender: 'client',
         timestamp: savedMessage.timestamp,
+        id: savedMessage.id
       });
     }
 
     // Actualizar lista de conversaciones activas
     const activeConversations = await this.conversationService.getActiveConversations();
-    this.server.emit('activeConversations', activeConversations);
+    this.server.emit('activeChats', activeConversations);
   }
 
   @SubscribeMessage('archiveChat')
@@ -243,7 +280,7 @@ export class ChatGateway {
 
     // Notificar a los agentes sobre el cambio
     const activeConversations = await this.conversationService.getActiveConversations();
-    this.server.emit('activeConversations', activeConversations);
+    this.server.emit('activeChats', activeConversations);
 
     // Obtener conversaciones archivadas (cerradas)
     const archivedConversations = await this.conversationService.getClosedConversations();
