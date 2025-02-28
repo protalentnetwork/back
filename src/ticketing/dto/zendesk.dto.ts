@@ -34,11 +34,15 @@ export class ChangeTicketStatusDto {
   status: string;
 }
 
+// Actualiza tu CreateAgentDto para incluir campos adicionales
 export class CreateAgentDto {
   name: string;
   email: string;
-  role?: string = 'agent'; // Por defecto será agente
-  default_group_id?: number; // Opcional, ID del grupo predeterminado
+  role?: string = 'agent'; // Por defecto 'agent'
+  default_group_id?: number;
+  active?: boolean = true;
+  verified?: boolean = true;
+  user_fields?: Record<string, any>;
 }
 
 export class AssignTicketDto {

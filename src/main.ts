@@ -13,6 +13,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://backoffice-casino-front-production.up.railway.app',
+      'https://chat-casi-production.up.railway.app',
       'http://localhost:3000',
       'http://localhost:8000',
     ],

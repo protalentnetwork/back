@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Put, Query, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Put, Query, Delete, HttpException, HttpStatus } from '@nestjs/common';
 import { ZendeskService } from './zendesk.service';
 import { ApiOperation, ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { CreateTicketDto, ChangeTicketStatusDto, AssignTicketDto, TicketResponseDto, CommentResponseDto, UserResponseDto, GroupMembershipResponseDto, ChatMessageResponseDto, ChatMessageDto, ChatConversationResponseDto, CreateAgentDto } from './dto/zendesk.dto';
@@ -8,6 +8,7 @@ import { API_PERMISSIONS } from '../auth/apikeys/permissions.constants';
 @ApiTags('Zendesk')
 @Controller('zendesk')
 export class ZendeskController {
+    logger: any;
     constructor(private readonly zendeskService: ZendeskService) { }
 
     @Post('create-ticket')
@@ -32,6 +33,51 @@ export class ZendeskController {
     @ApiResponse({ type: UserResponseDto })
     async createAgent(@Body() createAgentDto: CreateAgentDto) {
         return this.zendeskService.createAgent(createAgentDto);
+    }
+
+    @Post('contributors')
+    async createContributor(@Body() createContributorDto: {
+        name: string;
+        email: string;
+        group_id?: number;
+    }) {
+        try {
+            return await this.zendeskService.createContributor({
+                name: createContributorDto.name,
+                email: createContributorDto.email,
+                group_id: createContributorDto.group_id
+            });
+        } catch (error) {
+            throw new HttpException(
+                `Failed to create contributor: ${error.message}`,
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @Post('team-members')
+    async createTeamMember(@Body() createTeamMemberDto: any) {
+        try {
+            // Primero, verificar los límites de la cuenta
+            const limits = await this.zendeskService.checkAccountLimits();
+
+            // Si hay una recomendación específica, registrarla
+            if (limits.recommendedAction) {
+                this.logger.log(`Account limits check: ${limits.recommendedAction}`);
+            }
+
+            // Crear el miembro del equipo usando el nuevo método
+            return await this.zendeskService.createTeamMember({
+                name: createTeamMemberDto.name,
+                email: createTeamMemberDto.email,
+                group_id: createTeamMemberDto.group_id
+            });
+        } catch (error) {
+            throw new HttpException(
+                `Failed to create team member: ${error.message}`,
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
     }
 
     @Delete('agents/:userId')
