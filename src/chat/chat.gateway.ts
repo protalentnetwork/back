@@ -628,4 +628,29 @@ export class ChatGateway {
       rooms: Array.from(client.rooms)
     };
   }
+
+  @SubscribeMessage('getUserConversations')
+  async handleGetUserConversations(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: string }
+  ) {
+    console.log(`Obteniendo conversaciones para usuario ${data.userId}`);
+    
+    try {
+      // Obtener conversaciones del usuario desde el servicio
+      const conversations = await this.conversationService.getUserConversations(data.userId);
+      
+      console.log(`Encontradas ${conversations.length} conversaciones para usuario ${data.userId}`);
+      
+      // Enviar las conversaciones al cliente
+      client.emit('userConversations', conversations);
+      
+      return { success: true };
+    } catch (error) {
+      console.error(`Error al obtener conversaciones para usuario ${data.userId}:`, error.message);
+      // Enviar un array vacío en caso de error
+      client.emit('userConversations', []);
+      return { success: false, error: error.message };
+    }
+  }
 }
