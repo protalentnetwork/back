@@ -1,16 +1,76 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Injectable, OnModuleInit, Inject } from '@nestjs/common';
 import axios from 'axios';
 import { IpnNotification, DepositData, WithdrawData, Transaction, PaymentData } from './transaction.types';
-// Importamos el tipo RussiansDepositData
 import { RussiansDepositData } from './deposit/russians-deposit.types';
+import { AccountService } from '../account/account.service';
+import { Account } from '../account/entities/account.entity';
 
-// Re-exportamos los tipos necesarios
 export { Transaction } from './transaction.types';
 
 @Injectable()
-export class IpnService {
-  private accessToken = 'APP_USR-3129742543233710-022613-83ea3095ed06b53e7b12597ae3ec5e65-61359072';
+export class IpnService implements OnModuleInit {
+  private accounts: Account[] = [];
   private transactions: Transaction[] = [];
+
+  constructor(
+    @Inject(forwardRef(() => AccountService)) // Usar forwardRef para inyectar AccountService
+    private accountService: AccountService
+  ) { }
+
+  // Inicializar el servicio cargando todas las cuentas activas
+  async onModuleInit() {
+    try {
+      // Cargar todas las cuentas al iniciar el servicio
+      this.accounts = await this.accountService.findAll();
+      console.log(`Servicio IPN inicializado con ${this.accounts.length} cuentas configuradas`);
+    } catch (error) {
+      console.error('Error al inicializar el servicio IPN:', error);
+    }
+  }
+
+  // Método para agregar o actualizar una cuenta en el servicio
+  async configureAccount(account: Account) {
+    // Verificar si la cuenta ya existe en nuestra lista
+    const existingIndex = this.accounts.findIndex(acc => acc.id === account.id);
+
+    if (existingIndex >= 0) {
+      // Actualizar la cuenta existente
+      this.accounts[existingIndex] = account;
+      console.log(`Cuenta actualizada en el servicio IPN: ${account.name} (ID: ${account.id})`);
+    } else {
+      // Agregar la nueva cuenta
+      this.accounts.push(account);
+      console.log(`Nueva cuenta configurada en el servicio IPN: ${account.name} (ID: ${account.id})`);
+    }
+  }
+
+  // Obtener el token de acceso para una cuenta específica por CBU
+  private getAccessTokenByCbu(cbu: string): string | null {
+    const account = this.accounts.find(acc =>
+      acc.cbu === cbu &&
+      acc.wallet === 'mercadopago' &&
+      acc.status === 'active' &&
+      acc.mp_access_token
+    );
+
+    if (account?.mp_access_token) {
+      console.log(`Usando token de acceso para cuenta: ${account.name} (CBU: ${cbu})`);
+      return account.mp_access_token;
+    }
+
+    console.warn(`No se encontró token de acceso para CBU: ${cbu}`);
+    return null;
+  }
+
+  // Obtener todos los tokens de acceso disponibles
+  private getAllAccessTokens(): string[] {
+    const tokens = this.accounts
+      .filter(acc => acc.wallet === 'mercadopago' && acc.status === 'active' && acc.mp_access_token)
+      .map(acc => acc.mp_access_token);
+
+    // Eliminar posibles duplicados
+    return [...new Set(tokens)];
+  }
 
   async handleNotification(notification: IpnNotification) {
     const { topic, id, data } = notification;
@@ -20,57 +80,64 @@ export class IpnService {
     let transaction: Transaction;
     const paymentId = data?.resource || id;
 
-    try {
-      console.log('Consultando detalles del pago en la API de Mercado Pago para ID:', paymentId);
-      const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-        },
-      });
-      const apiData = response.data;
-      console.log('Respuesta completa de la API de Mercado Pago:', JSON.stringify(apiData, null, 2));
+    // Lista de tokens a intentar
+    const tokensToTry = this.getAllAccessTokens();
 
-      const paymentData: PaymentData = {
-        id: apiData.id,
-        description: apiData.description || 'Sin descripción',
-        amount: apiData.transaction_amount || 0,
-        status: apiData.status || 'Pending',
-        date_created: apiData.date_created,
-        date_approved: apiData.date_approved,
-        date_last_updated: apiData.date_last_updated,
-        money_release_date: apiData.money_release_date,
-        status_detail: apiData.status_detail,
-        payment_method_id: apiData.payment_method_id,
-        payment_type_id: apiData.payment_type_id,
-        payer_id: apiData.payer?.id,
-        payer_email: apiData.payer?.email,
-        payer_identification: apiData.payer?.identification || null,
-        receiver_id: apiData.collector_id || apiData.receiver_id,
-        bank_transfer_id: apiData.transaction_details?.bank_transfer_id,
-        transaction_details: apiData.transaction_details || null,
-        additional_info: apiData.additional_info || null,
-        external_reference: apiData.external_reference || null,
-        fee_details: apiData.fee_details || [],
-      };
-
+    if (tokensToTry.length === 0) {
+      console.error('No hay tokens de acceso disponibles para consultar Mercado Pago');
+      // Crear transacción básica de error
       transaction = {
-        id: paymentData.id,
+        id: paymentId,
         type: 'deposit',
-        amount: paymentData.amount,
-        status: paymentData.status,
-        date_created: paymentData.date_created,
-        description: paymentData.description,
-        payment_method_id: paymentData.payment_method_id,
-        payer_id: paymentData.payer_id,
-        payer_email: paymentData.payer_email,
-        payer_identification: paymentData.payer_identification,
-        external_reference: paymentData.external_reference,
+        amount: 0,
+        status: 'Pending',
+        date_created: new Date().toISOString(),
+        description: 'Error: No hay tokens de acceso configurados',
       };
-      console.log('Transacción de MP obtenida:', transaction);
-    } catch (error) {
-      console.error('Error al obtener detalles del pago:', error.response?.data || error.message);
 
-      // En caso de error, creamos una transacción básica con lo que tenemos
+      this.transactions.push(transaction);
+      return {
+        status: 'error',
+        message: 'No hay tokens de acceso configurados para Mercado Pago',
+        transaction
+      };
+    }
+
+    // Intentar con cada token hasta obtener una respuesta válida
+    let successfulResponse = null;
+    let lastError = null;
+
+    for (const token of tokensToTry) {
+      try {
+        console.log(`Consultando detalles del pago en Mercado Pago (ID: ${paymentId}) con token: ${token.substring(0, 10)}...`);
+        const response = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        // Si llegamos aquí, el token funcionó
+        successfulResponse = response;
+        console.log(`Consulta exitosa con token: ${token.substring(0, 10)}...`);
+        break;
+      } catch (error) {
+        console.warn(`Error al consultar con token ${token.substring(0, 10)}...`, error.message);
+        lastError = error;
+
+        // Si el error es 401/403, probar con el siguiente token
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          continue;
+        } else {
+          // Para otros errores, no intentamos más
+          break;
+        }
+      }
+    }
+
+    if (!successfulResponse) {
+      console.error('Todos los tokens fallaron al consultar Mercado Pago:', lastError?.message);
+
+      // Crear transacción de error
       transaction = {
         id: paymentId,
         type: 'deposit',
@@ -80,15 +147,61 @@ export class IpnService {
         description: 'Error al obtener detalles del pago',
       };
 
+      this.transactions.push(transaction);
       return {
         status: 'error',
-        message: 'No se pudieron obtener los detalles del pago',
+        message: 'No se pudieron obtener los detalles del pago con ningún token',
         transaction
       };
     }
 
+    // Procesar la respuesta exitosa
+    const apiData = successfulResponse.data;
+    console.log('Respuesta completa de la API de Mercado Pago:', JSON.stringify(apiData, null, 2));
+
+    const paymentData: PaymentData = {
+      id: apiData.id,
+      description: apiData.description || 'Sin descripción',
+      amount: apiData.transaction_amount || 0,
+      status: apiData.status || 'Pending',
+      date_created: apiData.date_created,
+      date_approved: apiData.date_approved,
+      date_last_updated: apiData.date_last_updated,
+      money_release_date: apiData.money_release_date,
+      status_detail: apiData.status_detail,
+      payment_method_id: apiData.payment_method_id,
+      payment_type_id: apiData.payment_type_id,
+      payer_id: apiData.payer?.id,
+      payer_email: apiData.payer?.email,
+      payer_identification: apiData.payer?.identification || null,
+      receiver_id: apiData.collector_id || apiData.receiver_id,
+      bank_transfer_id: apiData.transaction_details?.bank_transfer_id,
+      transaction_details: apiData.transaction_details || null,
+      additional_info: apiData.additional_info || null,
+      external_reference: apiData.external_reference || null,
+      fee_details: apiData.fee_details || [],
+    };
+
+    // Determinar la cuenta asociada basada en el receiver_id
+    const associatedAccount = this.findAccountByReceiverId(paymentData.receiver_id);
+
+    transaction = {
+      id: paymentData.id,
+      type: 'deposit',
+      amount: paymentData.amount,
+      status: paymentData.status,
+      date_created: paymentData.date_created,
+      description: paymentData.description,
+      payment_method_id: paymentData.payment_method_id,
+      payer_id: paymentData.payer_id,
+      payer_email: paymentData.payer_email,
+      payer_identification: paymentData.payer_identification,
+      external_reference: paymentData.external_reference,
+      cbu: associatedAccount?.cbu,
+    };
+
+    console.log('Transacción de MP obtenida:', transaction);
     this.transactions.push(transaction);
-    console.log('Transacción almacenada:', transaction);
 
     return {
       status: 'success',
@@ -97,22 +210,55 @@ export class IpnService {
     };
   }
 
+  // Buscar cuenta por receiver_id de Mercado Pago
+  private findAccountByReceiverId(receiverId: string): Account | undefined {
+    return this.accounts.find(account =>
+      account.wallet === 'mercadopago' &&
+      (this.mapCbuToMpIdentifier(account.cbu) === receiverId ||
+        account.mp_client_id === receiverId)
+    );
+  }
+
   getTransactions() {
     console.log('Transacciones disponibles antes de devolver:', this.transactions);
     return this.transactions;
   }
 
-  // Modificamos validateWithMercadoPago para aceptar RussiansDepositData
   async validateWithMercadoPago(depositData: RussiansDepositData) {
     console.log('Validando depósito:', depositData);
 
-    // Mapear RussiansDepositData a DepositData si es necesario
+    // Mapear RussiansDepositData a DepositData
     const depositToValidate: DepositData = {
       cbu: depositData.cbu,
       amount: depositData.amount,
       idTransferencia: depositData.idTransferencia,
       dateCreated: depositData.dateCreated
     };
+
+    // Obtener el token específico para este CBU
+    const accessToken = this.getAccessTokenByCbu(depositToValidate.cbu);
+
+    if (!accessToken) {
+      console.warn(`No se encontró token de acceso para el CBU: ${depositToValidate.cbu}`);
+      // Intentar con cualquier token disponible
+      const allTokens = this.getAllAccessTokens();
+      if (allTokens.length > 0) {
+        console.log('Intentando validar con cualquier token disponible');
+      } else {
+        console.error('No hay tokens de acceso disponibles');
+        const newTransaction: Transaction = {
+          id: depositToValidate.idTransferencia,
+          type: 'deposit',
+          amount: depositToValidate.amount,
+          status: 'Pending',
+          date_created: depositToValidate.dateCreated || new Date().toISOString(),
+          description: 'Depósito pendiente - No hay tokens configurados',
+          cbu: depositToValidate.cbu,
+        };
+        this.transactions.push(newTransaction);
+        return { status: 'error', message: 'No hay tokens configurados para Mercado Pago', transaction: newTransaction };
+      }
+    }
 
     // Buscar coincidencia en las transacciones almacenadas (depósitos de MP)
     const matchingTransaction = this.transactions.find(transaction => {
@@ -134,11 +280,29 @@ export class IpnService {
       return { status: 'success', transaction: matchingTransaction, message: 'Depósito validado automáticamente con Mercado Pago' };
     }
 
-    // Si no hay coincidencia local, consulta la API de MP
+    // Si no hay coincidencia local, consulta la API de MP usando el token específico
+    const tokenToUse = accessToken || this.getAllAccessTokens()[0];
+
+    if (!tokenToUse) {
+      console.error('No hay tokens disponibles para validar el depósito');
+      const newTransaction: Transaction = {
+        id: depositToValidate.idTransferencia,
+        type: 'deposit',
+        amount: depositToValidate.amount,
+        status: 'Pending',
+        date_created: depositToValidate.dateCreated || new Date().toISOString(),
+        description: 'Depósito pendiente - No hay tokens disponibles',
+        cbu: depositToValidate.cbu,
+      };
+      this.transactions.push(newTransaction);
+      return { status: 'error', message: 'No hay tokens disponibles para validar con Mercado Pago', transaction: newTransaction };
+    }
+
     try {
+      console.log(`Consultando API de Mercado Pago con token: ${tokenToUse.substring(0, 10)}...`);
       const response = await axios.get(`https://api.mercadopago.com/v1/payments`, {
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${tokenToUse}`,
         },
         params: {
           status: 'approved',
@@ -170,6 +334,7 @@ export class IpnService {
           payer_email: matchedPayment.payer_email,
           payer_identification: matchedPayment.payer_identification,
           external_reference: matchedPayment.external_reference,
+          cbu: depositToValidate.cbu,
         };
         this.transactions.push(newTransaction);
         console.log('Pago encontrado en la API de MP y validado:', newTransaction);
@@ -235,6 +400,13 @@ export class IpnService {
   }
 
   private mapCbuToMpIdentifier(cbu: string): string {
+    // Buscar en la lista de cuentas configuradas
+    const account = this.accounts.find(acc => acc.cbu === cbu && acc.wallet === 'mercadopago');
+    if (account?.mp_client_id) {
+      return account.mp_client_id;
+    }
+
+    // Mantener el mapeo estático como respaldo
     const cbuMapping = {
       '00010101': 'TU_RECEIVER_ID', // Reemplaza con el receiver_id de tu cuenta MP
       // Agrega más mapeos según tus cuentas

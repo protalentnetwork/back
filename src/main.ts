@@ -11,11 +11,11 @@ async function bootstrap() {
 
   // Configuración de CORS (ya existente, ajustado para WebSockets)
   app.enableCors({
-    origin: [
+    origin: true,/*  [
       'https://backoffice-casino-front-production.up.railway.app',
       'http://localhost:3000',
       'http://localhost:8000',
-    ],
+    ], */
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
     credentials: true,
