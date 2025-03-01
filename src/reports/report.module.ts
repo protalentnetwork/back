@@ -2,18 +2,19 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReportController } from './report.controller';
 import { ReportService } from './report.service';
-import { ChatModule } from '../chat/chat.module'; // Importar el módulo de Chat
-import { UserModule } from '../users/user.module'; // Ajusta la ruta según tu estructura
-import { ZendeskModule } from '../ticketing/zendesk.module'; // Ajusta la ruta según tu estructura
-import { Chat } from '../chat/entities/chat.entity'; // Asegúrate de que la ruta sea correcta
-import { User } from '../users/entities/user.entity'; // Asegúrate de que la ruta sea correcta
+import { ZendeskModule } from '../ticketing/zendesk.module';
+import { ChatModule } from '../chat/chat.module';
+import { UserModule } from '../users/user.module';
+import { Chat } from '../chat/entities/chat.entity';
+import { User } from '../users/entities/user.entity';
+import { Conversation } from '../chat/entities/conversation.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Chat, User]), // Importa las entidades necesarias
-    ChatModule, // Importa el módulo de Chat para que ChatService esté disponible
-    UserModule, // Importa el módulo de User
-    ZendeskModule // Importa el módulo de Zendesk
+    TypeOrmModule.forFeature([Chat, User, Conversation]),
+    ZendeskModule,
+    ChatModule,
+    UserModule
   ],
   controllers: [ReportController],
   providers: [ReportService],

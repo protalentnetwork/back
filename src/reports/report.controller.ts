@@ -108,4 +108,14 @@ export class ReportController {
   async getDashboardSummary() {
     return this.reportService.getDashboardSummary();
   }
+
+  @Get('/conversation-status-distribution')
+  @ApiOperation({ summary: 'Obtener distribución de conversaciones por estado' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Retorna los datos de distribución de conversaciones por estado (activos, pendientes, archivados)' 
+  })
+  async getConversationStatusDistribution() {
+    return this.reportService.getConversationStatusDistribution();
+  }
 }

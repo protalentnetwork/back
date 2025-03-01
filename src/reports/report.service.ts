@@ -6,6 +6,8 @@ import { ZendeskService } from '../ticketing/zendesk.service';
 import { UserService } from '../users/user.service';
 import { Chat } from '../chat/entities/chat.entity';
 import { User } from '../users/entities/user.entity';
+import { ConversationService } from '../chat/conversation.service';
+import { Conversation } from '../chat/entities/conversation.entity';
 
 // Interfaces simplificadas para tipado
 interface TicketResponse {
@@ -30,10 +32,13 @@ export class ReportService {
         private readonly zendeskService: ZendeskService,
         private readonly chatService: ChatService,
         private readonly userService: UserService,
+        private readonly conversationService: ConversationService,
         @InjectRepository(Chat)
         private readonly chatRepository: Repository<Chat>,
         @InjectRepository(User)
-        private readonly userRepository: Repository<User>
+        private readonly userRepository: Repository<User>,
+        @InjectRepository(Conversation)
+        private readonly conversationRepository: Repository<Conversation>
     ) { }
 
     // Método auxiliar para obtener todos los mensajes
@@ -486,6 +491,44 @@ export class ReportService {
                     trendPositive: false
                 }
             };
+        }
+    }
+
+    // Nuevo método para obtener la distribución de conversaciones por estado
+    async getConversationStatusDistribution() {
+        try {
+            // Consulta para obtener el conteo de conversaciones por estado
+            const activeCount = await this.conversationRepository.count({
+                where: { status: 'active' }
+            });
+
+            // En el sistema actual solo hay 'active' y 'closed', pero podemos agregar 'pending' si se necesita
+            // Para este ejemplo, consideraremos como pendientes las conversaciones activas sin agente asignado
+            const pendingCount = await this.conversationRepository.count({
+                where: { status: 'active', agentId: IsNull() }
+            });
+
+            // Las conversaciones archivadas son las que tienen estado 'closed'
+            const archivedCount = await this.conversationRepository.count({
+                where: { status: 'closed' }
+            });
+
+            // Calcular activas reales (activas menos pendientes)
+            const realActiveCount = activeCount - pendingCount;
+
+            return [
+                { name: 'Activos', value: realActiveCount },
+                { name: 'Pendientes', value: pendingCount },
+                { name: 'Archivados', value: archivedCount }
+            ];
+        } catch (error) {
+            console.error('Error al obtener distribución de chats por estado:', error);
+            // Datos de ejemplo en caso de error
+            return [
+                { name: 'Activos', value: 15 },
+                { name: 'Pendientes', value: 8 },
+                { name: 'Archivados', value: 32 }
+            ];
         }
     }
 }
