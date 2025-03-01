@@ -33,7 +33,7 @@ export class MessageDto {
   conversationId: string;
 }
 
-export class SendMessageDto {
+export class AgentMessageDto {
   @ApiProperty({
     description: 'ID del usuario que envía el mensaje',
     example: 'user123'
@@ -51,9 +51,7 @@ export class SendMessageDto {
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
   conversationId: string;
-}
-
-export class AgentMessageDto extends SendMessageDto {
+  
   @ApiProperty({
     description: 'ID del agente que envía el mensaje',
     example: 'agent456'

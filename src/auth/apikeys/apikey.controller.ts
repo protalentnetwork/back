@@ -1,9 +1,10 @@
 import { Controller, Post, Body, Get, Param, Delete, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiExcludeController } from '@nestjs/swagger';
 import { ApiKeyService } from './apikey.service';
 import { API_PERMISSIONS } from './permissions.constants';
 import { ApiKeyResponseDto, CreateApiKeyDto, GenerateLimitedKeyDto } from './dto/apikey.dto';
 
+@ApiExcludeController()
 @ApiTags('API Keys')
 @Controller('api-keys')
 export class ApiKeyController {

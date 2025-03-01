@@ -2,7 +2,9 @@ import { Controller, Post, Body, HttpCode, HttpStatus, Logger, UseGuards } from 
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ApiExcludeController } from '@nestjs/swagger';
 
+@ApiExcludeController()
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
 export class AuthController {

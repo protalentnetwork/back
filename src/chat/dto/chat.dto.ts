@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { MessageDto } from './message.dto';
 
 export class JoinChatDto {
   @ApiProperty({
@@ -42,34 +41,4 @@ export class AssignAgentDto {
     example: 'agent456'
   })
   agentId: string;
-}
-
-export class ChatResponseDto {
-  @ApiProperty({
-    description: 'Mensaje de estado de la operación',
-    example: 'Mensaje enviado con éxito'
-  })
-  message: string;
-
-  @ApiProperty({
-    description: 'Datos adicionales de la respuesta. Puede contener información del usuario, mensajes o chats activos',
-    type: 'object',
-    properties: {
-      userId: { type: 'string', example: 'user123' },
-      message: { type: 'string', example: 'Hola' },
-      timestamp: { type: 'string', example: '2024-02-21T10:00:00Z' },
-      activeChats: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            userId: { type: 'string', example: 'user123' },
-            lastMessage: { type: 'string', example: 'Hola, necesito ayuda' }
-          }
-        }
-      }
-    },
-    additionalProperties: true
-  })
-  data: Record<string, any>;
 } 
