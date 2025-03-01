@@ -42,6 +42,36 @@ export class UserController {
     return users.map(user => new UserResponseDto(user));
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a user' })
+  @ApiResponse({
+    status: 200,
+    description: 'User updated successfully',
+    type: UserResponseDto
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found'
+  })
+  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
+    const user = await this.userService.updateUser(parseInt(id), updateUserDto);
+    return new UserResponseDto(user);
+  }
+
+  @Patch(':id/password')
+  @ApiOperation({ summary: 'Update user password' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password updated successfully'
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found'
+  })
+  async updatePassword(@Param('id') id: string, @Body() updatePasswordDto: UpdatePasswordDto): Promise<void> {
+    await this.userService.updatePassword(parseInt(id), updatePasswordDto);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar un usuario' })

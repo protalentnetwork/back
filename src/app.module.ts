@@ -12,6 +12,7 @@ import { ReportModule } from './reports/report.module';
 import { IpnModule } from './transactions/transactions.module';
 import { ZendeskModule } from './ticketing/zendesk.module';
 import { ZendeskController } from './ticketing/zendesk.controller';
+import { OfficeModule } from './office/office.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ZendeskController } from './ticketing/zendesk.controller';
     ReportModule,
     IpnModule,
     ZendeskModule,
+    OfficeModule,
   ],
   controllers: [ZendeskController],
   providers: [],

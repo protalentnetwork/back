@@ -10,6 +10,7 @@ import { Account as PaymentAccount } from 'src/payment/entities/account.entity';
 import { Account as AccountEntity } from 'src/account/entities/account.entity';
 import { ApiKey } from 'src/auth/apikeys/entities/apikey.entity';
 import { TicketAssignment } from 'src/ticketing/entities/ticket-assignment.entity';
+import { Office } from 'src/office/entities/office.entity';
 
 @Injectable()
 export class TypeOrmConfigService implements TypeOrmOptionsFactory {
@@ -26,6 +27,7 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
       AccountEntity,
       ApiKey,
       TicketAssignment,
+      Office,
     ];
 
     return {
