@@ -10,7 +10,7 @@ export class ChatService {
   constructor(
     @InjectRepository(Chat)
     private chatRepository: Repository<Chat>,
-  ) { }
+  ) {}
 
   async saveMessage(userId: string, message: string, sender: string, conversationId: string, agentId?: string): Promise<Chat> {
     const chat = this.chatRepository.create({
@@ -49,24 +49,13 @@ export class ChatService {
     return message ? null : (await this.chatRepository.findOne({ where: { userId } })).agentId;
   }
 
-  async getActiveChats(): Promise<{ userId: string; agentId: string | null; conversationId: string }[]> {
-    const rawMessages = await this.chatRepository
+  async getActiveChats(): Promise<{ userId: string; agentId: string | null }[]> {
+    const messages = await this.chatRepository
       .createQueryBuilder('chat')
       .distinctOn(['chat.userId'])
       .select(['chat.userId', 'chat.agentId', 'chat.conversationId'])
       .orderBy('chat.userId')
       .getRawMany();
-
-
-    const mappedResults = rawMessages.map(raw => {
-      const result = {
-        userId: raw.chat_user_id,
-        agentId: raw.chat_agent_id,
-        conversationId: raw.chat_conversation_id
-      };
-      return result;
-    });
-
-    return mappedResults;
+    return messages;
   }
 }

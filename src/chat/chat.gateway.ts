@@ -207,26 +207,26 @@ export class ChatGateway {
     @MessageBody() data: AssignAgentDto
   ) {
     console.log(`Asignando conversación ${data.conversationId} a ${data.agentId}`);
-    
+
     try {
       // Asignar agente a la conversación
       const conversation = await this.conversationService.getConversationById(data.conversationId);
       if (!conversation) {
         // Responder con error si la conversación no existe
-        return { 
-          success: false, 
-          error: `Conversación con ID ${data.conversationId} no encontrada` 
+        return {
+          success: false,
+          error: `Conversación con ID ${data.conversationId} no encontrada`
         };
       }
-      
+
       // Si ya hay un agente asignado, rechazar la asignación
       if (conversation.agentId) {
-        return { 
-          success: false, 
-          error: `La conversación ya tiene asignado al agente ${conversation.agentId}` 
+        return {
+          success: false,
+          error: `La conversación ya tiene asignado al agente ${conversation.agentId}`
         };
       }
-      
+
       // Asignar agente a la conversación
       await this.conversationService.assignAgentToConversation(data.conversationId, data.agentId);
       
@@ -240,10 +240,10 @@ export class ChatGateway {
         
         // Enviar mensajes de la conversación al agente
         const messages = await this.chatService.getMessagesByConversationId(data.conversationId);
-        this.server.to(agentSocketId).emit('assignedConversation', { 
-          conversationId: data.conversationId, 
+        this.server.to(agentSocketId).emit('assignedConversation', {
+          conversationId: data.conversationId,
           userId: conversation.userId,
-          messages 
+          messages
         });
       }
       
@@ -263,7 +263,7 @@ export class ChatGateway {
         conversationId: data.conversationId,
         success: true
       });
-      
+
       // Actualizar lista de conversaciones activas
       const activeConversations = await this.conversationService.getActiveConversations();
       this.server.to('agents').emit('activeChats', activeConversations);
@@ -370,7 +370,7 @@ export class ChatGateway {
 
   @SubscribeMessage('selectConversation')
   async handleSelectConversation(
-    @ConnectedSocket() client: Socket, 
+    @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string; agentId: string }
   ) {
     console.log(`Agente ${data.agentId} seleccionó la conversación ${data.conversationId}`);
@@ -380,9 +380,9 @@ export class ChatGateway {
     
     // Obtener mensajes de la conversación
     const messages = await this.chatService.getMessagesByConversationId(data.conversationId);
-    client.emit('conversationMessages', { 
-      conversationId: data.conversationId, 
-      messages 
+    client.emit('conversationMessages', {
+      conversationId: data.conversationId,
+      messages
     });
     
     return { success: true };
@@ -510,17 +510,17 @@ export class ChatGateway {
   @SubscribeMessage('archiveChat')
   async handleArchiveChat(@MessageBody() data: { userId: string; agentId: string; conversationId: string }) {
     console.log(`Archivando conversación ${data.conversationId} del usuario ${data.userId}`);
-    
+
     // Cerrar la conversación
     await this.conversationService.closeConversation(data.conversationId);
-    
+
     // Notificar a los agentes sobre el cambio
     const activeConversations = await this.conversationService.getActiveConversations();
     this.server.to('agents').emit('activeChats', activeConversations);
     
     // Obtener conversaciones archivadas (cerradas)
     const archivedConversations = await this.conversationService.getClosedConversations();
-    
+
     // Emitir las conversaciones archivadas
     this.server.to('agents').emit('archivedChats', archivedConversations);
     
@@ -538,10 +538,10 @@ export class ChatGateway {
   @SubscribeMessage('getArchivedChats')
   async handleGetArchivedChats(@ConnectedSocket() client: Socket) {
     console.log('Obteniendo conversaciones archivadas');
-    
+
     // Obtener conversaciones archivadas (cerradas)
     const archivedConversations = await this.conversationService.getClosedConversations();
-    
+
     // Emitir las conversaciones archivadas al cliente que las solicitó
     client.emit('archivedChats', archivedConversations);
     

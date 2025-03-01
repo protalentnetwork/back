@@ -144,16 +144,24 @@ export class ZendeskService {
     async createAgent(createAgentDto: CreateAgentDto): Promise<UserResponseDto> {
         const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
 
+        // Datos del usuario con más configuraciones específicas para agentes
         const agentData = {
             user: {
                 name: createAgentDto.name,
                 email: createAgentDto.email,
-                role: createAgentDto.role || 'agent', // Por defecto 'agent'
-                default_group_id: createAgentDto.default_group_id, // Opcional
-            },
+                role: createAgentDto.role || 'contributor', // Cambiado de 'agent' a 'contributor'
+                verified: true, // Marcar como verificado para evitar el email de verificación
+                active: true,   // Asegurarse de que la cuenta está activa
+                default_group_id: createAgentDto.default_group_id,
+                // Opcional: incluir configuraciones adicionales según sea necesario
+                user_fields: {
+                    agent_oboard_complete: true // Campo personalizado que puede ser necesario
+                }
+            }
         };
 
         try {
+            // 1. Crear el usuario
             const response: AxiosResponse<{ user: User }> = await firstValueFrom(
                 this.httpService.post(env.ZENDESK_URL_USERS, agentData, {
                     headers: {
@@ -164,6 +172,36 @@ export class ZendeskService {
             );
 
             const user = response.data.user;
+
+            // 2. Si es necesario, agregar explícitamente al usuario como agente
+            // Este paso podría ser necesario en algunas configuraciones de Zendesk
+            if (user.role === 'agent' && createAgentDto.default_group_id) {
+                try {
+                    // Crear membresía de grupo explícitamente
+                    await firstValueFrom(
+                        this.httpService.post(
+                            `${env.ZENDESK_URL}/api/v2/group_memberships`,
+                            {
+                                group_membership: {
+                                    user_id: user.id,
+                                    group_id: createAgentDto.default_group_id
+                                }
+                            },
+                            {
+                                headers: {
+                                    'Authorization': `Basic ${auth}`,
+                                    'Content-Type': 'application/json',
+                                },
+                            }
+                        )
+                    );
+                    this.logger.log(`Added user ${user.id} to group ${createAgentDto.default_group_id}`);
+                } catch (groupError) {
+                    this.logger.error('Error adding user to group:', groupError.response?.data || groupError.message);
+                    // No lanzamos error aquí, ya que el usuario ya fue creado
+                }
+            }
+
             return {
                 id: user.id,
                 name: user.name,
@@ -172,8 +210,336 @@ export class ZendeskService {
                 default_group_id: user.default_group_id,
             };
         } catch (error) {
-            console.error('Error creating agent:', error.response?.data || error.message);
-            throw new Error(`Error creating agent: ${error.response?.data?.error || error.message}`);
+            // Registrar detalles completos del error
+            console.error('Error creating agent:', {
+                message: error.message,
+                status: error.response?.status,
+                data: JSON.stringify(error.response?.data, null, 2),
+                details: JSON.stringify(error.response?.data?.details, null, 2)
+            });
+
+            // Si hay detalles específicos, mostrarlos
+            if (error.response?.data?.details?.base) {
+                throw new Error(`Error creating agent: ${error.response.data.error} - ${error.response.data.details.base[0].message || 'Unknown details'}`);
+            } else {
+                throw new Error(`Error creating agent: ${error.response?.data?.error || error.message}`);
+            }
+        }
+    }
+
+    async createTeamMember(createTeamMemberDto: {
+        name: string;
+        email: string;
+        group_id?: number;
+    }): Promise<UserResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        // Datos específicos para un Team Member con rol contributor
+        const teamMemberData = {
+            user: {
+                name: createTeamMemberDto.name,
+                email: createTeamMemberDto.email,
+                role: 'contributor', // Rol específico que parece funcionar en tu cuenta
+                verified: true,
+                active: true
+            }
+        };
+
+        // Si se proporciona un ID de grupo, añadirlo a los datos
+        if (createTeamMemberDto.group_id) {
+            teamMemberData.user['default_group_id'] = createTeamMemberDto.group_id;
+        }
+
+        try {
+            this.logger.log(`Creating team member with email: ${createTeamMemberDto.email}`);
+
+            // Intentar crear el usuario
+            const response: AxiosResponse<{ user: User }> = await firstValueFrom(
+                this.httpService.post(env.ZENDESK_URL_USERS, teamMemberData, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            const user = response.data.user;
+            this.logger.log(`Team member created successfully with ID: ${user.id}`);
+
+            // Si se proporcionó un grupo pero no se asignó durante la creación, asignarlo explícitamente
+            if (createTeamMemberDto.group_id && !user.default_group_id) {
+                try {
+                    await this.assignUserToGroup(user.id, createTeamMemberDto.group_id);
+                } catch (groupError) {
+                    this.logger.warn(`Created user but couldn't assign to group: ${groupError.message}`);
+                }
+            }
+
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                default_group_id: user.default_group_id
+            };
+        } catch (error) {
+            // Registrar detalles completos del error
+            this.logger.error('Error creating team member:', {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data,
+                details: error.response?.data?.details
+            });
+
+            throw new Error(`Error creating team member: ${error.response?.data?.details?.base?.[0]?.message ||
+                error.response?.data?.error ||
+                error.message
+                }`);
+        }
+    }
+
+    async checkAccountLimits(): Promise<any> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            // Verificar la información de la cuenta y los usuarios actuales
+            const [usersResponse, accountResponse] = await Promise.all([
+                firstValueFrom(
+                    this.httpService.get(`${env.ZENDESK_URL}/api/v2/users`, {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                        params: {
+                            role: ['agent', 'admin', 'contributor']
+                        }
+                    })
+                ),
+                firstValueFrom(
+                    this.httpService.get(`${env.ZENDESK_URL}/api/v2/account/settings`, {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                    })
+                )
+            ]);
+
+            // Contar usuarios por rol
+            const users = usersResponse.data.users;
+            const userCounts = {
+                total: users.length,
+                byRole: users.reduce((acc, user) => {
+                    acc[user.role] = (acc[user.role] || 0) + 1;
+                    return acc;
+                }, {})
+            };
+
+            // Obtener información sobre roles disponibles
+            const rolesResponse = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/custom_roles`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            return {
+                accountSettings: accountResponse.data.settings,
+                userCounts,
+                customRoles: rolesResponse.data.custom_roles,
+                recommendedAction: userCounts.byRole.agent >= accountResponse.data.settings.agent_limit
+                    ? "You've reached your agent limit. Try creating contributors instead."
+                    : "You have agent capacity available."
+            };
+        } catch (error) {
+            this.logger.error('Error checking account limits:', error.response?.data || error.message);
+            throw new Error(`Error checking account limits: ${error.response?.data?.error || error.message}`);
+        }
+    }
+
+
+
+    async createContributor(createContributorDto: {
+        name: string;
+        email: string;
+        group_id?: number;
+    }): Promise<UserResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        // 1. Primero, obtenemos los roles personalizados para encontrar el ID del rol "Contributor"
+        let contributorRoleId: number | null = null;
+
+        try {
+            const rolesResponse = await firstValueFrom(
+                this.httpService.get(`${env.ZENDESK_URL}/api/v2/custom_roles`, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            // Verificar y guardar la respuesta completa para debugging
+            this.logger.log('Custom roles API response:', JSON.stringify(rolesResponse.data, null, 2));
+
+            // Verificar que tenemos una estructura de datos válida
+            if (rolesResponse.data && rolesResponse.data.custom_roles && Array.isArray(rolesResponse.data.custom_roles)) {
+                const customRoles = rolesResponse.data.custom_roles;
+
+                // Buscar el rol que contenga "contributor" en su nombre (insensible a mayúsculas/minúsculas)
+                const contributorRole = customRoles.find(role =>
+                    role && role.name && role.name.toLowerCase().includes('contributor')
+                );
+
+                if (contributorRole) {
+                    contributorRoleId = contributorRole.id;
+                    this.logger.log(`Found contributor role: ${contributorRole.name} (ID: ${contributorRoleId})`);
+                } else {
+                    this.logger.warn('No contributor role found in custom roles. Will create as regular agent.');
+                }
+            } else {
+                this.logger.warn('Custom roles API response does not contain expected data structure');
+            }
+        } catch (error) {
+            this.logger.warn('Failed to fetch custom roles, continuing as regular agent:', error.message);
+        }
+
+        // 2. Crear el usuario como agente (con o sin rol personalizado)
+        const userData = {
+            user: {
+                name: createContributorDto.name,
+                email: createContributorDto.email,
+                role: 'agent', // Rol base válido para la API
+                verified: true, // Marcar como verificado para evitar el email de verificación
+                active: true    // Asegurarse de que la cuenta está activa
+            }
+        };
+
+        // Solo añadir custom_role_id si lo encontramos
+        if (contributorRoleId) {
+            userData.user['custom_role_id'] = contributorRoleId;
+        }
+
+        // Si se proporciona un grupo, añadirlo a los datos del usuario
+        if (createContributorDto.group_id) {
+            userData.user['default_group_id'] = createContributorDto.group_id;
+        }
+
+        try {
+            this.logger.log(`Creating contributor with email: ${createContributorDto.email}`);
+            this.logger.log('Request payload:', JSON.stringify(userData, null, 2));
+
+            // Crear el usuario
+            const response = await firstValueFrom(
+                this.httpService.post(env.ZENDESK_URL_USERS, userData, {
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+            );
+
+            const user = response.data.user;
+            this.logger.log(`User created successfully with ID: ${user.id}`);
+
+            // Si se proporcionó un grupo pero no se asignó durante la creación, asignarlo explícitamente
+            if (createContributorDto.group_id && !user.default_group_id) {
+                try {
+                    await this.assignUserToGroup(user.id, createContributorDto.group_id);
+                } catch (groupError) {
+                    this.logger.warn(`Created user but couldn't assign to group: ${groupError.message}`);
+                }
+            }
+
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                custom_role_id: user.custom_role_id,
+                default_group_id: user.default_group_id
+            };
+        } catch (error) {
+            // Registrar detalles completos del error
+            this.logger.error('Error creating contributor:', {
+                message: error.message,
+                status: error.response?.status,
+                data: JSON.stringify(error.response?.data, null, 2),
+            });
+
+            throw new Error(`Error creating contributor: ${error.response?.data?.error?.message ||
+                error.response?.data?.error ||
+                error.message
+                }`);
+        }
+    }
+
+    // Método auxiliar para asignar un usuario a un grupo
+    async assignUserToGroup(userId: number, groupId: number): Promise<void> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        const groupMembershipData = {
+            group_membership: {
+                user_id: userId,
+                group_id: groupId
+            }
+        };
+
+        try {
+            await firstValueFrom(
+                this.httpService.post(
+                    `${env.ZENDESK_URL}/api/v2/group_memberships`,
+                    groupMembershipData,
+                    {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                )
+            );
+
+            this.logger.log(`User ${userId} assigned to group ${groupId}`);
+        } catch (error) {
+            this.logger.error(`Failed to assign user ${userId} to group ${groupId}:`, error.message);
+            throw error;
+        }
+    }
+
+    async assignCustomRole(userId: number, customRoleId: number): Promise<UserResponseDto> {
+        const auth = Buffer.from(`${env.ZENDESK_EMAIL}/token:${env.ZENDESK_TOKEN}`).toString('base64');
+
+        try {
+            const response: AxiosResponse<{ user: User }> = await firstValueFrom(
+                this.httpService.put(`${env.ZENDESK_URL_USERS}/${userId}`,
+                    {
+                        user: {
+                            custom_role_id: customRoleId
+                        }
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                )
+            );
+
+            const user = response.data.user;
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                default_group_id: user.default_group_id,
+                custom_role_id: user.custom_role_id
+            };
+        } catch (error) {
+            console.error('Error assigning custom role:', error.response?.data || error.message);
+            throw new Error(`Error assigning custom role: ${error.response?.data?.error || error.message}`);
         }
     }
 
