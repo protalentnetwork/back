@@ -18,6 +18,12 @@ export class UserService {
         return this.userRepository.find();
     }
 
+    async findUsersByRole(role: string): Promise<User[]> {
+        return this.userRepository.find({
+            where: { role, status: 'active' }
+        });
+    }
+
     async create(createUserDto: CreateUserDto): Promise<User> {
         const existingUser = await this.userRepository.findOne({
             where: { email: createUserDto.email }

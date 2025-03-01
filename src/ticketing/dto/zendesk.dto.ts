@@ -51,6 +51,20 @@ export class AssignTicketDto {
   userId: string;
 }
 
+export class InternalAssigneeDto {
+  @ApiProperty({ description: 'ID of the internal assignee' })
+  @IsNumber()
+  id: number;
+
+  @ApiProperty({ description: 'Name of the internal assignee' })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ description: 'Email of the internal assignee' })
+  @IsEmail()
+  email: string;
+}
+
 export class TicketResponseDto {
   @ApiProperty()
   @IsNumber()
@@ -91,6 +105,10 @@ export class TicketResponseDto {
   @ApiProperty({ type: 'array', required: false })
   @IsOptional()
   custom_fields?: { id: number; value: string }[];
+
+  @ApiProperty({ type: InternalAssigneeDto, required: false })
+  @IsOptional()
+  internal_assignee?: InternalAssigneeDto;
 }
 
 export class CommentResponseDto {

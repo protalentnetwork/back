@@ -144,4 +144,63 @@ export class ZendeskController {
     ) {
         return this.zendeskService.asignTicket(ticketId, assignDto.userId);
     }
+
+    @Get('tickets-by-operator/:operatorId')
+    async getTicketsByOperator(@Param('operatorId') operatorId: string) {
+        return this.zendeskService.getTicketsAssignedToOperator(Number(operatorId));
+    }
+
+    @Get('operators-with-ticket-counts')
+    async getOperatorsWithTicketCounts() {
+        // Get all operators
+        const operators = await this.zendeskService.getUserService().findUsersByRole('operador');
+        
+        // Get ticket counts for each operator
+        const operatorsWithCounts = await Promise.all(
+            operators.map(async (operator) => {
+                const ticketCount = await this.zendeskService.getTicketAssignmentRepository().count({
+                    where: { userId: operator.id, status: 'open' }
+                });
+                return {
+                    id: operator.id,
+                    username: operator.username,
+                    email: operator.email,
+                    ticketCount
+                };
+            })
+        );
+        
+        return operatorsWithCounts;
+    }
+
+    @Put('reassign-ticket/:ticketId/to-operator/:operatorId')
+    async reassignTicket(
+        @Param('ticketId') ticketId: string,
+        @Param('operatorId') operatorId: string
+    ) {
+        // First update in Zendesk if needed
+        await this.zendeskService.asignTicket(ticketId, null); // Can set to null or a default Zendesk ID
+        
+        // Update our internal assignment
+        const ticketAssignment = await this.zendeskService.getTicketAssignmentRepository().findOne({
+            where: { zendeskTicketId: ticketId }
+        });
+        
+        if (ticketAssignment) {
+            ticketAssignment.userId = Number(operatorId);
+            await this.zendeskService.getTicketAssignmentRepository().save(ticketAssignment);
+        } else {
+            // Create a new assignment if it doesn't exist
+            const newAssignment = this.zendeskService.getTicketAssignmentRepository().create({
+                ticketId: parseInt(ticketId),
+                zendeskTicketId: ticketId,
+                userId: Number(operatorId),
+                status: 'open'
+            });
+            await this.zendeskService.getTicketAssignmentRepository().save(newAssignment);
+        }
+        
+        // Get the updated ticket
+        return this.zendeskService.getTicket(ticketId);
+    }
 }
