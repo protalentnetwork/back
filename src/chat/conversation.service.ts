@@ -11,12 +11,25 @@ export class ConversationService {
     private conversationRepository: Repository<Conversation>,
   ) {}
 
-  async createConversation(createConversationDto: CreateConversationDto): Promise<Conversation> {
-    const conversation = this.conversationRepository.create({
-      userId: createConversationDto.userId,
-      title: createConversationDto.title || `Conversación de ${createConversationDto.userId}`,
-      status: 'active',
-    });
+  async createConversation(createConversationDto: CreateConversationDto | string): Promise<Conversation> {
+    let conversation;
+    
+    if (typeof createConversationDto === 'string') {
+      // Si se pasa un string, asumimos que es el userId
+      conversation = this.conversationRepository.create({
+        userId: createConversationDto,
+        title: `Conversación de ${createConversationDto}`,
+        status: 'active',
+      });
+    } else {
+      // Caso normal con DTO
+      conversation = this.conversationRepository.create({
+        userId: createConversationDto.userId,
+        title: createConversationDto.title || `Conversación de ${createConversationDto.userId}`,
+        status: 'active',
+      });
+    }
+    
     return this.conversationRepository.save(conversation);
   }
 
@@ -67,6 +80,13 @@ export class ConversationService {
   async getClosedConversations(): Promise<Conversation[]> {
     return this.conversationRepository.find({
       where: { status: 'closed' },
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  async getUserConversations(userId: string): Promise<Conversation[]> {
+    return this.conversationRepository.find({
+      where: { userId },
       order: { updatedAt: 'DESC' },
     });
   }
