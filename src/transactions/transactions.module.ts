@@ -7,11 +7,13 @@ import { DepositController } from './deposit/deposit.controller';
 import { RussiansWithdrawController } from './withdraw/withdrawler.controller';
 import { Account } from '../account/entities/account.entity';
 import { AccountModule } from '../account/account.module';
+import { ChatModule } from 'src/chat/chat.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Account]),
     forwardRef(() => AccountModule), // Usar forwardRef para evitar dependencia circular
+    forwardRef(() => ChatModule),
   ],
   controllers: [IpnController, DepositController, RussiansWithdrawController, TransactionsController],
   providers: [IpnService],

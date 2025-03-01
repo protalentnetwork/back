@@ -4,11 +4,16 @@ import { IpnNotification, DepositData, WithdrawData, Transaction, PaymentData } 
 import { RussiansDepositData } from './deposit/russians-deposit.types';
 import { AccountService } from '../account/account.service';
 import { Account } from '../account/entities/account.entity';
+import { WebSocketServer } from '@nestjs/websockets';
+import { Server } from 'socket.io';
+
 
 export { Transaction } from './transaction.types';
 
 @Injectable()
 export class IpnService implements OnModuleInit {
+  @WebSocketServer()
+  server: Server;
   private accounts: Account[] = [];
   private transactions: Transaction[] = [];
 
