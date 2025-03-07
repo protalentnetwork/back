@@ -67,7 +67,7 @@ export class ChatGateway {
 
   handleDisconnect(client: Socket) {
     console.log(`Cliente desconectado: ${client.id}`);
-    
+
     // Limpiar mapeos cuando un cliente se desconecta
     const userId = this.socketToUser.get(client.id);
     if (userId) {
@@ -75,7 +75,7 @@ export class ChatGateway {
       this.activeChats.delete(userId);
       this.socketToUser.delete(client.id);
     }
-    
+
     const agentId = this.socketToAgent.get(client.id);
     if (agentId) {
       console.log(`Eliminando agente ${agentId} de agentSockets`);
@@ -97,27 +97,27 @@ export class ChatGateway {
     @MessageBody() payload: JoinChatDto
   ) {
     console.log(`Usuario ${payload.userId} se unió al chat con socket ${client.id}`);
-    
+
     // Guardar la relación en ambos mapas
     this.activeChats.set(payload.userId, client.id);
     this.socketToUser.set(client.id, payload.userId);
-    
+
     // Unir al cliente a una sala específica para este usuario
     client.join(`user_${payload.userId}`);
-    
+
     // Búsqueda de conversaciones existentes para este usuario
     const conversations = await this.conversationService.getUserConversations(payload.userId);
-    
+
     // Enviamos las conversaciones al cliente
     client.emit('userConversations', conversations);
-    
+
     // Notificar a los agentes que este usuario está conectado
     this.server.to('agents').emit('connectionStatus', {
       type: 'user',
       id: payload.userId,
       status: 'connected'
     });
-    
+
     console.log(`Usuario ${payload.userId} unido exitosamente. Socket: ${client.id}`);
     return { success: true, message: 'Joined chat successfully' };
   }
@@ -129,45 +129,45 @@ export class ChatGateway {
   ) {
     try {
       console.log(`Solicitud para crear conversación para usuario ${payload.userId}`);
-      
+
       // Verificar si ya existe una conversación activa
       const existingConversations = await this.conversationService.getUserConversations(payload.userId);
       const activeConversation = existingConversations.find(c => c.status === 'active');
-      
+
       if (activeConversation) {
         console.log(`Ya existe una conversación activa para ${payload.userId}: ${activeConversation.id}`);
-        
+
         // Unir al cliente a la sala de esta conversación
         client.join(`conversation_${activeConversation.id}`);
-        
-        return { 
-          success: true, 
-          message: 'Conversación existente recuperada', 
-          data: { conversationId: activeConversation.id } 
+
+        return {
+          success: true,
+          message: 'Conversación existente recuperada',
+          data: { conversationId: activeConversation.id }
         };
       }
-      
+
       // Crear una nueva conversación
       const newConversation = await this.conversationService.createConversation(payload.userId);
       console.log(`Nueva conversación creada para ${payload.userId}: ${newConversation.id}`);
-      
+
       // Unir al cliente a la sala de esta conversación
       client.join(`conversation_${newConversation.id}`);
-      
+
       // Notificar a los agentes sobre la nueva conversación
       const activeConversations = await this.conversationService.getActiveConversations();
       this.server.to('agents').emit('activeChats', activeConversations);
-      
-      return { 
-        success: true, 
-        message: 'Conversación creada exitosamente', 
-        data: { conversationId: newConversation.id } 
+
+      return {
+        success: true,
+        message: 'Conversación creada exitosamente',
+        data: { conversationId: newConversation.id }
       };
     } catch (error) {
       console.error(`Error al crear conversación para ${payload.userId}:`, error);
-      return { 
-        success: false, 
-        message: error.message || 'Error al crear conversación' 
+      return {
+        success: false,
+        message: error.message || 'Error al crear conversación'
       };
     }
   }
@@ -178,26 +178,26 @@ export class ChatGateway {
     @MessageBody() payload: JoinAgentDto
   ) {
     console.log(`Agente ${payload.agentId} se unió con socket ${client.id}`);
-    
+
     // Guardar la relación en ambos mapas
     this.agentSockets.set(payload.agentId, client.id);
     this.socketToAgent.set(client.id, payload.agentId);
-    
+
     // Unir al agente a salas específicas
     client.join('agents'); // Sala general de agentes
     client.join(`agent_${payload.agentId}`); // Sala específica para este agente
-    
+
     // Enviar conversaciones activas al agente
     const activeConversations = await this.conversationService.getActiveConversations();
     client.emit('activeChats', activeConversations);
-    
+
     // Notificar a otros agentes que este agente está conectado
     this.server.to('agents').emit('connectionStatus', {
       type: 'agent',
       id: payload.agentId,
       status: 'connected'
     });
-    
+
     console.log(`Agente ${payload.agentId} unido exitosamente. Socket: ${client.id}`);
     return { success: true, message: 'Agent joined successfully' };
   }
@@ -230,7 +230,7 @@ export class ChatGateway {
 
       // Asignar agente a la conversación
       await this.conversationService.assignAgentToConversation(data.conversationId, data.agentId);
-      
+
       // Unir al agente a la sala de esta conversación
       const agentSocketId = this.agentSockets.get(data.agentId);
       if (agentSocketId) {
@@ -238,7 +238,7 @@ export class ChatGateway {
         if (agentSocket) {
           agentSocket.join(`conversation_${data.conversationId}`);
         }
-        
+
         // Enviar mensajes de la conversación al agente
         const messages = await this.chatService.getMessagesByConversationId(data.conversationId);
         this.server.to(agentSocketId).emit('assignedConversation', {
@@ -247,7 +247,7 @@ export class ChatGateway {
           messages
         });
       }
-      
+
       // Notificar al cliente que un agente ha sido asignado
       const clientSocketId = this.activeChats.get(conversation.userId);
       if (clientSocketId) {
@@ -256,7 +256,7 @@ export class ChatGateway {
           agentId: data.agentId
         });
       }
-      
+
       // Notificar a todos los agentes que el agente fue asignado
       this.server.to('agents').emit('agentAssigned', {
         userId: conversation.userId,
@@ -268,7 +268,7 @@ export class ChatGateway {
       // Actualizar lista de conversaciones activas
       const activeConversations = await this.conversationService.getActiveConversations();
       this.server.to('agents').emit('activeChats', activeConversations);
-      
+
       // Enviar respuesta de éxito
       return { success: true };
     } catch (error) {
@@ -281,31 +281,31 @@ export class ChatGateway {
   @SubscribeMessage('message')
   async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() data: AgentMessageDto) {
     console.log(`Mensaje de agente ${data.agentId} para conversación ${data.conversationId}: ${data.message}`);
-    
+
     try {
       // Verificar que la conversación existe
       const conversation = await this.conversationService.getConversationById(data.conversationId);
       if (!conversation) {
         throw new WsException(`Conversación con ID ${data.conversationId} no encontrada`);
       }
-      
+
       // Si la conversación no tiene un agente asignado, asignar este agente
       if (!conversation.agentId) {
         await this.conversationService.assignAgentToConversation(data.conversationId, data.agentId);
-        
+
         // Unir al agente a la sala de esta conversación
         client.join(`conversation_${data.conversationId}`);
       }
-      
+
       // Actualizar timestamp de la conversación
       await this.conversationService.updateConversationTimestamp(data.conversationId);
-      
+
       // Guardar el mensaje
       const savedMessage = await this.chatService.saveMessage(
-        data.userId, 
-        data.message, 
-        'agent', 
-        data.conversationId, 
+        data.userId,
+        data.message,
+        'agent',
+        data.conversationId,
         data.agentId
       );
 
@@ -319,20 +319,20 @@ export class ChatGateway {
         timestamp: savedMessage.timestamp,
         conversationId: data.conversationId,
       };
-      
+
       // Enviar mensaje al cliente
       const clientSocketId = this.activeChats.get(data.userId);
       if (clientSocketId) {
         console.log(`Enviando mensaje a cliente ${data.userId} con socket ${clientSocketId}`);
-        
+
         // Enviar a través de la sala específica del usuario
         this.server.to(`user_${data.userId}`).emit('message', messageToSend);
         this.server.to(`user_${data.userId}`).emit('newMessage', messageToSend);
-        
+
         // También enviar directamente al socket del usuario
         this.server.to(clientSocketId).emit('message', messageToSend);
         this.server.to(clientSocketId).emit('newMessage', messageToSend);
-        
+
         // Enviar a través de la sala de la conversación
         this.server.to(`conversation_${data.conversationId}`).emit('message', messageToSend);
         this.server.to(`conversation_${data.conversationId}`).emit('newMessage', messageToSend);
@@ -348,7 +348,7 @@ export class ChatGateway {
 
       // Notificar a otros agentes que estén viendo la misma conversación
       this.server.to(`conversation_${data.conversationId}`).emit('newMessage', messageToSend);
-      
+
       // Actualizar lista de conversaciones activas
       const activeConversations = await this.conversationService.getActiveConversations();
       this.server.to('agents').emit('activeChats', activeConversations);
@@ -375,17 +375,17 @@ export class ChatGateway {
     @MessageBody() data: { conversationId: string; agentId: string }
   ) {
     console.log(`Agente ${data.agentId} seleccionó la conversación ${data.conversationId}`);
-    
+
     // Unir al agente a la sala de esta conversación
     client.join(`conversation_${data.conversationId}`);
-    
+
     // Obtener mensajes de la conversación
     const messages = await this.chatService.getMessagesByConversationId(data.conversationId);
     client.emit('conversationMessages', {
       conversationId: data.conversationId,
       messages
     });
-    
+
     return { success: true };
   }
 
@@ -395,17 +395,17 @@ export class ChatGateway {
     @MessageBody() data: { conversationId: string }
   ) {
     console.log(`Solicitando mensajes para conversación ${data.conversationId}`);
-    
+
     try {
       // Unir al cliente a la sala de esta conversación
       client.join(`conversation_${data.conversationId}`);
-      
+
       // Obtener mensajes de la conversación
       const messages = await this.chatService.getMessagesByConversationId(data.conversationId);
-      
+
       // Enviar mensajes al cliente
       client.emit('messageHistory', messages);
-      
+
       return { success: true };
     } catch (error) {
       console.error('Error al obtener mensajes:', error);
@@ -419,20 +419,20 @@ export class ChatGateway {
     @MessageBody() data: MessageDto
   ) {
     console.log(`Mensaje de cliente ${data.userId} para conversación ${data.conversationId}: ${data.message}`);
-    
+
     try {
       // Verificar que la conversación existe
       const conversation = await this.conversationService.getConversationById(data.conversationId);
       if (!conversation) {
         throw new WsException(`Conversación con ID ${data.conversationId} no encontrada`);
       }
-      
+
       // Unir al cliente a la sala de esta conversación si no está ya
       client.join(`conversation_${data.conversationId}`);
-      
+
       // Actualizar timestamp de la conversación
       await this.conversationService.updateConversationTimestamp(data.conversationId);
-      
+
       // Guardar el mensaje
       const savedMessage = await this.chatService.saveMessage(
         data.userId,
@@ -451,16 +451,16 @@ export class ChatGateway {
         timestamp: savedMessage.timestamp,
         conversationId: data.conversationId,
       };
-      
+
       // Si hay un agente asignado, enviar el mensaje al agente
       if (conversation.agentId) {
         const agentSocketId = this.agentSockets.get(conversation.agentId);
         if (agentSocketId) {
           console.log(`Enviando mensaje a agente ${conversation.agentId} con socket ${agentSocketId}`);
-          
+
           // Enviar a través de la sala específica del agente
           this.server.to(`agent_${conversation.agentId}`).emit('newMessage', messageToSend);
-          
+
           // También enviar directamente al socket del agente
           this.server.to(agentSocketId).emit('newMessage', messageToSend);
         } else {
@@ -471,11 +471,11 @@ export class ChatGateway {
         console.log('No hay agente asignado, notificando a todos los agentes');
         this.server.to('agents').emit('newMessage', messageToSend);
       }
-      
+
       // Enviar a través de la sala de la conversación
       this.server.to(`conversation_${data.conversationId}`).emit('message', messageToSend);
       this.server.to(`conversation_${data.conversationId}`).emit('newMessage', messageToSend);
-      
+
       // Enviar confirmación al cliente
       client.emit('messageConfirmation', {
         success: true,
@@ -487,11 +487,11 @@ export class ChatGateway {
 
       // También enviar el mensaje al cliente para mantener la consistencia
       client.emit('message', messageToSend);
-      
+
       // Actualizar lista de conversaciones activas para todos los agentes
       const activeConversations = await this.conversationService.getActiveConversations();
       this.server.to('agents').emit('activeChats', activeConversations);
-      
+
       return {
         success: true,
         data: {
@@ -518,13 +518,13 @@ export class ChatGateway {
     // Notificar a los agentes sobre el cambio
     const activeConversations = await this.conversationService.getActiveConversations();
     this.server.to('agents').emit('activeChats', activeConversations);
-    
+
     // Obtener conversaciones archivadas (cerradas)
     const archivedConversations = await this.conversationService.getClosedConversations();
 
     // Emitir las conversaciones archivadas
     this.server.to('agents').emit('archivedChats', archivedConversations);
-    
+
     // Notificar al cliente que su conversación ha sido archivada
     const clientSocketId = this.activeChats.get(data.userId);
     if (clientSocketId) {
@@ -532,7 +532,7 @@ export class ChatGateway {
         conversationId: data.conversationId
       });
     }
-    
+
     return { success: true };
   }
 
@@ -545,18 +545,18 @@ export class ChatGateway {
 
     // Emitir las conversaciones archivadas al cliente que las solicitó
     client.emit('archivedChats', archivedConversations);
-    
+
     return { success: true };
   }
 
   @SubscribeMessage('getActiveChats')
   async handleGetActiveChats(@ConnectedSocket() client: Socket) {
     console.log('Obteniendo conversaciones activas');
-    
+
     try {
       // Get active conversations from the conversation service
       const activeConversations = await this.conversationService.getActiveConversations();
-      
+
       // Map conversations to the expected format with userId, agentId, and conversationId
       const formattedChats = activeConversations.map(conversation => {
         console.log(`Conversación: ${conversation.id}, Usuario: ${conversation.userId}, Agente: ${conversation.agentId || 'Sin asignar'}`);
@@ -566,10 +566,10 @@ export class ChatGateway {
           conversationId: conversation.id
         };
       });
-      
+
       console.log(`Enviando ${formattedChats.length} conversaciones activas:`, formattedChats);
       client.emit('activeChats', formattedChats);
-      
+
       return { success: true };
     } catch (error) {
       console.error('Error al obtener chats activos:', error.message);
@@ -585,36 +585,36 @@ export class ChatGateway {
     @MessageBody() data: { userId: string }
   ) {
     console.log(`Buscando ID de conversación para usuario ${data.userId}`);
-    
+
     try {
       // Buscar conversaciones activas existentes para este usuario
       const activeConversations = await this.conversationService.getActiveConversationsByUserId(data.userId);
-      
+
       if (activeConversations && activeConversations.length > 0) {
         // Si hay conversaciones activas, usar la más reciente
         const conversationId = activeConversations[0].id;
         console.log(`Encontrada conversación existente para ${data.userId}: ${conversationId}`);
-        
+
         // Unir al cliente a la sala de esta conversación
         client.join(`conversation_${conversationId}`);
-        
-        return { 
-          success: true, 
-          conversationId 
+
+        return {
+          success: true,
+          conversationId
         };
       } else {
         // Si no hay conversaciones activas, devolver un error
         console.log(`No se encontraron conversaciones para el usuario ${data.userId}`);
-        return { 
-          success: false, 
-          error: `El usuario no tiene una conversación activa. Debe iniciar una nueva conversación desde el chat.` 
+        return {
+          success: false,
+          error: `El usuario no tiene una conversación activa. Debe iniciar una nueva conversación desde el chat.`
         };
       }
     } catch (error) {
       console.error(`Error al obtener conversación para ${data.userId}:`, error.message);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   }
@@ -622,8 +622,8 @@ export class ChatGateway {
   // Método para verificar el estado de conexión de un cliente
   @SubscribeMessage('checkConnection')
   async handleCheckConnection(@ConnectedSocket() client: Socket) {
-    return { 
-      success: true, 
+    return {
+      success: true,
       socketId: client.id,
       connected: true,
       rooms: Array.from(client.rooms)
@@ -636,16 +636,16 @@ export class ChatGateway {
     @MessageBody() data: { userId: string }
   ) {
     console.log(`Obteniendo conversaciones para usuario ${data.userId}`);
-    
+
     try {
       // Obtener conversaciones del usuario desde el servicio
       const conversations = await this.conversationService.getUserConversations(data.userId);
-      
+
       console.log(`Encontradas ${conversations.length} conversaciones para usuario ${data.userId}`);
-      
+
       // Enviar las conversaciones al cliente
       client.emit('userConversations', conversations);
-      
+
       return { success: true };
     } catch (error) {
       console.error(`Error al obtener conversaciones para usuario ${data.userId}:`, error.message);
@@ -653,5 +653,21 @@ export class ChatGateway {
       client.emit('userConversations', []);
       return { success: false, error: error.message };
     }
+  }
+
+  @SubscribeMessage('getConnectedUsers')
+  async handleGetConnectedUsers(@ConnectedSocket() client: Socket) {
+    console.log('Obteniendo usuarios conectados');
+
+    // Enviar el estado de conexión de todos los usuarios activos
+    this.activeChats.forEach((socketId, userId) => {  // Corregido: (socketId, userId)
+      client.emit('connectionStatus', {
+        type: 'user',
+        id: userId,
+        status: 'connected'
+      });
+    });
+
+    return { success: true };
   }
 }
