@@ -582,18 +582,26 @@ export class ChatGateway {
   @SubscribeMessage('getConversationId')
   async handleGetConversationId(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { userId: string }
+    @MessageBody() data: { userId: string; isArchived?: boolean }
   ) {
-    console.log(`Buscando ID de conversación para usuario ${data.userId}`);
+    console.log(`Buscando ID de conversación para usuario ${data.userId}${data.isArchived ? ' (archivada)' : ''}`);
 
     try {
-      // Buscar conversaciones activas existentes para este usuario
-      const activeConversations = await this.conversationService.getActiveConversationsByUserId(data.userId);
+      let conversations;
+      
+      if (data.isArchived) {
+        // Si estamos buscando conversaciones archivadas
+        const allConversations = await this.conversationService.getAllConversationsByUserId(data.userId);
+        conversations = allConversations.filter(conv => conv.status === 'closed');
+      } else {
+        // Buscar conversaciones activas existentes para este usuario
+        conversations = await this.conversationService.getActiveConversationsByUserId(data.userId);
+      }
 
-      if (activeConversations && activeConversations.length > 0) {
-        // Si hay conversaciones activas, usar la más reciente
-        const conversationId = activeConversations[0].id;
-        console.log(`Encontrada conversación existente para ${data.userId}: ${conversationId}`);
+      if (conversations && conversations.length > 0) {
+        // Si hay conversaciones, usar la más reciente
+        const conversationId = conversations[0].id;
+        console.log(`Encontrada conversación ${data.isArchived ? 'archivada' : 'activa'} para ${data.userId}: ${conversationId}`);
 
         // Unir al cliente a la sala de esta conversación
         client.join(`conversation_${conversationId}`);
@@ -603,18 +611,19 @@ export class ChatGateway {
           conversationId
         };
       } else {
-        // Si no hay conversaciones activas, devolver un error
-        console.log(`No se encontraron conversaciones para el usuario ${data.userId}`);
+        // Si no hay conversaciones, devolver un error
+        const statusType = data.isArchived ? 'archivada' : 'activa';
+        console.log(`No se encontraron conversaciones ${statusType}s para el usuario ${data.userId}`);
         return {
           success: false,
-          error: `El usuario no tiene una conversación activa. Debe iniciar una nueva conversación desde el chat.`
+          error: `El usuario no tiene una conversación ${statusType}. ${!data.isArchived ? 'Debe iniciar una nueva conversación desde el chat.' : ''}`
         };
       }
     } catch (error) {
-      console.error(`Error al obtener conversación para ${data.userId}:`, error.message);
+      console.error(`Error al buscar conversación para ${data.userId}:`, error);
       return {
         success: false,
-        error: error.message
+        error: 'Error al buscar la conversación'
       };
     }
   }
