@@ -38,21 +38,48 @@ export class ChatGateway {
     private readonly conversationService: ConversationService
   ) {
     console.log('ChatGateway inicializado');
-    setInterval(() => this.logConnectionStatus(), 60000); // Log cada minuto
+    
+    // Usar un intervalo más largo para el log de estado de conexiones
+    // y evitar posibles problemas de rendimiento
+    setInterval(() => this.logConnectionStatus(), 300000); // Log cada 5 minutos
   }
 
   // Método para loguear el estado de las conexiones
   private logConnectionStatus() {
-    console.log('=== ESTADO DE CONEXIONES ===');
-    console.log(`Clientes activos: ${this.activeChats.size}`);
-    console.log(`Agentes activos: ${this.agentSockets.size}`);
-    this.activeChats.forEach((socketId, userId) => {
-      console.log(`Usuario ${userId} -> Socket ${socketId}`);
-    });
-    this.agentSockets.forEach((socketId, agentId) => {
-      console.log(`Agente ${agentId} -> Socket ${socketId}`);
-    });
-    console.log('===========================');
+    try {
+      console.log('=== ESTADO DE CONEXIONES ===');
+      console.log(`Clientes activos: ${this.activeChats.size}`);
+      console.log(`Agentes activos: ${this.agentSockets.size}`);
+      
+      // Limitar el número de conexiones que se muestran en el log para evitar sobrecarga
+      let userCount = 0;
+      this.activeChats.forEach((socketId, userId) => {
+        if (userCount < 10) { // Solo mostrar los primeros 10 usuarios
+          console.log(`Usuario ${userId} -> Socket ${socketId}`);
+          userCount++;
+        }
+      });
+      
+      if (this.activeChats.size > 10) {
+        console.log(`... y ${this.activeChats.size - 10} usuarios más`);
+      }
+      
+      let agentCount = 0;
+      this.agentSockets.forEach((socketId, agentId) => {
+        if (agentCount < 10) { // Solo mostrar los primeros 10 agentes
+          console.log(`Agente ${agentId} -> Socket ${socketId}`);
+          agentCount++;
+        }
+      });
+      
+      if (this.agentSockets.size > 10) {
+        console.log(`... y ${this.agentSockets.size - 10} agentes más`);
+      }
+      
+      console.log('===========================');
+    } catch (error) {
+      console.error('Error al loguear estado de conexiones:', error);
+    }
   }
 
   afterInit() {
@@ -74,6 +101,13 @@ export class ChatGateway {
       console.log(`Eliminando usuario ${userId} de activeChats`);
       this.activeChats.delete(userId);
       this.socketToUser.delete(client.id);
+      
+      // Notificar a todos sobre la desconexión del usuario
+      this.server.to('general').emit('connectionStatus', {
+        type: 'user',
+        id: userId,
+        status: 'disconnected'
+      });
     }
 
     const agentId = this.socketToAgent.get(client.id);
@@ -81,14 +115,14 @@ export class ChatGateway {
       console.log(`Eliminando agente ${agentId} de agentSockets`);
       this.agentSockets.delete(agentId);
       this.socketToAgent.delete(client.id);
+      
+      // Notificar a todos sobre la desconexión del agente
+      this.server.to('general').emit('connectionStatus', {
+        type: 'agent',
+        id: agentId,
+        status: 'disconnected'
+      });
     }
-
-    // Notificar a todos sobre el cambio de estado de conexión
-    this.server.to('general').emit('connectionStatus', {
-      type: userId ? 'user' : 'agent',
-      id: userId || agentId,
-      status: 'disconnected'
-    });
   }
 
   @SubscribeMessage('joinChat')
@@ -509,44 +543,125 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('archiveChat')
-  async handleArchiveChat(@MessageBody() data: { userId: string; agentId: string; conversationId: string }) {
+  async handleArchiveChat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: string; agentId: string; conversationId: string }
+  ) {
     console.log(`Archivando conversación ${data.conversationId} del usuario ${data.userId}`);
 
-    // Cerrar la conversación
-    await this.conversationService.closeConversation(data.conversationId);
+    try {
+      // Cerrar la conversación
+      await this.conversationService.closeConversation(data.conversationId);
 
-    // Notificar a los agentes sobre el cambio
-    const activeConversations = await this.conversationService.getActiveConversations();
-    this.server.to('agents').emit('activeChats', activeConversations);
+      // Obtener la conversación actualizada
+      const updatedConversation = await this.conversationService.getConversationById(data.conversationId);
+      
+      if (!updatedConversation) {
+        return { success: false, error: 'No se pudo encontrar la conversación' };
+      }
 
-    // Obtener conversaciones archivadas (cerradas)
-    const archivedConversations = await this.conversationService.getClosedConversations();
+      // Crear el formato de respuesta
+      const formattedChat = {
+        userId: updatedConversation.userId,
+        agentId: updatedConversation.agentId,
+        conversationId: updatedConversation.id
+      };
 
-    // Emitir las conversaciones archivadas
-    this.server.to('agents').emit('archivedChats', archivedConversations);
-
-    // Notificar al cliente que su conversación ha sido archivada
-    const clientSocketId = this.activeChats.get(data.userId);
-    if (clientSocketId) {
-      this.server.to(clientSocketId).emit('chatArchived', {
-        conversationId: data.conversationId
+      // Notificar a los agentes sobre el cambio
+      this.server.to('agents').emit('chatArchived', {
+        conversationId: data.conversationId,
+        chat: formattedChat
       });
-    }
 
-    return { success: true };
+      // Notificar al cliente que su conversación ha sido archivada
+      const clientSocketId = this.activeChats.get(data.userId);
+      if (clientSocketId) {
+        this.server.to(clientSocketId).emit('chatArchived', {
+          conversationId: data.conversationId
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error(`Error al archivar conversación ${data.conversationId}:`, error);
+      return { success: false, error: 'Error al archivar la conversación' };
+    }
+  }
+
+  @SubscribeMessage('unarchiveChat')
+  async handleUnarchiveChat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: string; agentId: string; conversationId: string }
+  ) {
+    console.log(`Desarchivando conversación ${data.conversationId} del usuario ${data.userId}`);
+
+    try {
+      // Reabrir la conversación
+      await this.conversationService.reopenConversation(data.conversationId);
+
+      // Obtener la conversación actualizada
+      const updatedConversation = await this.conversationService.getConversationById(data.conversationId);
+      
+      if (!updatedConversation) {
+        return { success: false, error: 'No se pudo encontrar la conversación' };
+      }
+
+      // Crear el formato de respuesta
+      const formattedChat = {
+        userId: updatedConversation.userId,
+        agentId: updatedConversation.agentId,
+        conversationId: updatedConversation.id
+      };
+
+      // Notificar a los agentes sobre el cambio
+      this.server.to('agents').emit('chatUnarchived', {
+        conversationId: data.conversationId,
+        chat: formattedChat
+      });
+
+      // Notificar al cliente que su conversación ha sido desarchivada
+      const clientSocketId = this.activeChats.get(data.userId);
+      if (clientSocketId) {
+        this.server.to(clientSocketId).emit('chatUnarchived', {
+          conversationId: data.conversationId
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error(`Error al desarchivar conversación ${data.conversationId}:`, error);
+      return { success: false, error: 'Error al desarchivar la conversación' };
+    }
   }
 
   @SubscribeMessage('getArchivedChats')
   async handleGetArchivedChats(@ConnectedSocket() client: Socket) {
     console.log('Obteniendo conversaciones archivadas');
 
-    // Obtener conversaciones archivadas (cerradas)
-    const archivedConversations = await this.conversationService.getClosedConversations();
+    try {
+      // Obtener conversaciones archivadas (cerradas)
+      const archivedConversations = await this.conversationService.getClosedConversations();
 
-    // Emitir las conversaciones archivadas al cliente que las solicitó
-    client.emit('archivedChats', archivedConversations);
+      // Mapear conversaciones al formato esperado
+      const formattedChats = archivedConversations.map(conversation => ({
+        userId: conversation.userId,
+        agentId: conversation.agentId,
+        conversationId: conversation.id
+      }));
 
-    return { success: true };
+      // Solo loguear un resumen para evitar sobrecarga en la consola
+      console.log(`Enviando ${formattedChats.length} conversaciones archivadas`);
+      
+      // Emitir las conversaciones archivadas al cliente que las solicitó
+      client.emit('archivedChats', formattedChats);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error al obtener chats archivados:', error.message);
+      // Enviar un array vacío en caso de error
+      client.emit('archivedChats', []);
+      return { success: false, error: error.message };
+    }
   }
 
   @SubscribeMessage('getActiveChats')
@@ -558,16 +673,16 @@ export class ChatGateway {
       const activeConversations = await this.conversationService.getActiveConversations();
 
       // Map conversations to the expected format with userId, agentId, and conversationId
-      const formattedChats = activeConversations.map(conversation => {
-        console.log(`Conversación: ${conversation.id}, Usuario: ${conversation.userId}, Agente: ${conversation.agentId || 'Sin asignar'}`);
-        return {
-          userId: conversation.userId,
-          agentId: conversation.agentId,
-          conversationId: conversation.id
-        };
-      });
+      const formattedChats = activeConversations.map(conversation => ({
+        userId: conversation.userId,
+        agentId: conversation.agentId,
+        conversationId: conversation.id
+      }));
 
-      console.log(`Enviando ${formattedChats.length} conversaciones activas:`, formattedChats);
+      // Solo loguear un resumen para evitar sobrecarga en la consola
+      console.log(`Enviando ${formattedChats.length} conversaciones activas`);
+      
+      // Emitir solo al cliente que lo solicitó
       client.emit('activeChats', formattedChats);
 
       return { success: true };
@@ -668,14 +783,11 @@ export class ChatGateway {
   async handleGetConnectedUsers(@ConnectedSocket() client: Socket) {
     console.log('Obteniendo usuarios conectados');
 
-    // Enviar el estado de conexión de todos los usuarios activos
-    this.activeChats.forEach((socketId, userId) => {  // Corregido: (socketId, userId)
-      client.emit('connectionStatus', {
-        type: 'user',
-        id: userId,
-        status: 'connected'
-      });
-    });
+    // Crear un array con todos los IDs de usuarios conectados
+    const connectedUsers = Array.from(this.activeChats.keys());
+    
+    // Enviar la lista completa de usuarios conectados en un solo evento
+    client.emit('connectedUsers', connectedUsers);
 
     return { success: true };
   }

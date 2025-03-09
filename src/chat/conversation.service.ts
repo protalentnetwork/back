@@ -70,6 +70,14 @@ export class ConversationService {
     return this.getConversationById(conversationId);
   }
 
+  async reopenConversation(conversationId: string): Promise<Conversation> {
+    await this.conversationRepository.update(
+      { id: conversationId },
+      { status: 'active' }
+    );
+    return this.getConversationById(conversationId);
+  }
+
   async getActiveConversations(): Promise<Conversation[]> {
     return this.conversationRepository.find({
       where: { status: 'active' },
